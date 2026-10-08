@@ -1,0 +1,160 @@
+
+
+
+        /* ── Base ─────────────────────────────────────────── */
+        *, *::before, *::after { box-sizing: border-box; }
+        body {
+            font-family: 'Sarabun', sans-serif;
+            background-color: var(--w-bg);
+            background-image: radial-gradient(ellipse 80% 50% at 50% -20%, var(--w-light), transparent);
+            color: #374151;
+            min-height: 100vh;
+        }
+        h1,h2,h3,h4,h5,h6,.font-prompt { font-family: 'Prompt', sans-serif; }
+
+        /* Helpers เพิ่มเติม */
+        .bg-theme-light { background-color: var(--w-light) !important; }
+        .text-theme { color: var(--w-primary) !important; }
+
+        /* ── Page Header ──────────────────────────────────── */
+        .page-header-section {
+            background: #fff; border-bottom: 1px solid rgba(0,0,0,0.06);
+            padding: 20px 0; margin-bottom: 28px; box-shadow: 0 1px 8px rgba(0,0,0,0.04);
+        }
+        .page-title-badge {
+            display: inline-flex; align-items: center; gap: 8px; background: var(--w-primary-10);
+            border: 1.5px solid var(--w-primary-20); border-radius: 10px; padding: 6px 14px;
+            font-size: 0.78rem; font-weight: 600; color: var(--w-primary); margin-bottom: 8px;
+            letter-spacing: 0.04em; text-transform: uppercase;
+        }
+
+        /* ── KPI Cards ────────────────────────────────────── */
+        .kpi-card {
+            border: none; border-radius: 18px; box-shadow: 0 2px 12px rgba(0,0,0,0.05), 0 1px 3px rgba(0,0,0,0.04);
+            transition: transform 0.25s ease, box-shadow 0.25s ease; background: #fff; position: relative; overflow: hidden;
+        }
+        .kpi-card::after {
+            content: ''; position: absolute; top: 0; right: 0; width: 80px; height: 80px;
+            background: radial-gradient(circle at 100% 0%, var(--w-primary-10) 0%, transparent 70%); pointer-events: none;
+        }
+        .kpi-card::before {
+            content: ''; position: absolute; top: 0; left: 0; width: 5px; height: 100%;
+            background: linear-gradient(180deg, var(--w-primary), color-mix(in srgb, var(--w-primary) 60%, transparent));
+            border-top-left-radius: 18px; border-bottom-left-radius: 18px;
+        }
+        .kpi-card.border-danger::before { background: linear-gradient(180deg, #ef4444, #dc2626); }
+        .kpi-card.border-warning::before { background: linear-gradient(180deg, #f59e0b, #d97706); }
+	.kpi-card.border-success::before { background: linear-gradient(180deg, #16a34a, #15803d); }
+	.kpi-card.border-success .kpi-icon { background: #f0fdf4; color: #16a34a; }
+        .kpi-card:hover { transform: translateY(-4px); box-shadow: 0 12px 30px rgba(0,0,0,0.09); }
+        .kpi-card .card-body { padding: 20px 20px 20px 24px; }
+        .kpi-icon {
+            width: 52px; height: 52px; border-radius: 14px; display: flex; align-items: center; justify-content: center;
+            font-size: 1.4rem; background: var(--w-primary-10); color: var(--w-primary); flex-shrink: 0;
+        }
+        .kpi-card.border-danger .kpi-icon { background: #fef2f2; color: #ef4444; }
+        .kpi-card.border-warning .kpi-icon { background: #fffbeb; color: #f59e0b; }
+        .kpi-label { font-size: 0.75rem; font-weight: 600; color: #9ca3af; letter-spacing: 0.03em; margin-bottom: 4px; text-transform: uppercase; }
+        .kpi-value { font-family: 'Prompt', sans-serif; font-size: 1.9rem; font-weight: 700; color: #111827; line-height: 1.1; }
+        .kpi-value small { font-size: 0.85rem; font-weight: 400; color: #9ca3af; }
+
+        /* ── Chart Card ───────────────────────────────────── */
+        .chart-container {
+            background: #fff; border-radius: 18px; padding: 24px; box-shadow: 0 2px 12px rgba(0,0,0,0.05); height: 100%; border: 1px solid rgba(0,0,0,0.04);
+        }
+        .chart-section-title {
+            display: flex; align-items: center; gap: 10px; padding-bottom: 14px; margin-bottom: 14px; border-bottom: 1px solid #f3f4f6;
+        }
+        .chart-icon-wrap {
+            width: 34px; height: 34px; border-radius: 9px; background: var(--w-primary-10); color: var(--w-primary);
+            display: flex; align-items: center; justify-content: center; font-size: 0.9rem;
+        }
+
+        /* ── Table Custom ─────────────────────────────────── */
+        .table-custom {
+            background: #fff; border-radius: 18px; overflow: hidden; box-shadow: 0 2px 12px rgba(0,0,0,0.05); border: 1px solid rgba(0,0,0,0.04);
+        }
+        .table-custom .table-header-band { padding: 16px 20px; }
+        .table-custom .table-header-band.primary-band {
+            background: linear-gradient(135deg, var(--w-primary) 0%, color-mix(in srgb, var(--w-primary) 80%, #1e3a5f) 100%); color: #fff;
+        }
+        .table-custom .table-header-band.danger-band { background: linear-gradient(135deg, #ef4444 0%, #b91c1c 100%); color: #fff; }
+        .table-custom .table-header-band.warning-band { background: linear-gradient(135deg, #f59e0b 0%, #b45309 100%); color: #fff; }
+        .table-custom table thead th {
+            font-family: 'Prompt', sans-serif; font-weight: 500; font-size: 0.82rem; color: #6b7280; letter-spacing: 0.04em; text-transform: uppercase;
+            border: none; padding: 13px 16px; background: #f9fafb; border-bottom: 1px solid #f3f4f6;
+        }
+        .table-custom table tbody td { padding: 13px 16px; vertical-align: middle; border-bottom: 1px solid #f9fafb; font-size: 0.9rem; }
+        .table-custom table tbody tr:last-child td { border-bottom: none; }
+        .table-custom table tbody tr:hover { background: var(--w-primary-10); }
+
+        /* ── Modern Timeline ── */
+        .j-step { padding: 3px 10px; border-radius: 50px; font-weight: 600; font-family: 'Prompt', sans-serif; font-size: 0.72rem; white-space: nowrap; border: 1px solid transparent; box-shadow: 0 1px 2px rgba(0,0,0,0.05); }
+        .j-arrow { color: #cbd5e1; font-size: 0.65rem; }
+        .j-er { background: #fff7ed; color: #c2410c; border-color: #fdba74; } 
+        .j-gp { background: #fff7ed; color: #c2410c; border-color: #fdba74; }
+        .j-icu { background: #fef2f2; color: #b91c1c; border-color: #fecaca; } 
+        .j-rcu { background: #fffbeb; color: #b45309; border-color: #fde68a; } 
+        .j-a4 { background: #f5f3ff; color: #6d28d9; border-color: #ede9fe; } 
+        .j-b3 { background: #f0fdfa; color: #0f766e; border-color: #ccfbf1; } 
+        .j-default { background: #f1f5f9; color: #475569; border-color: #cbd5e1; }
+        .j-dc { background: #f0fdf4; color: #15803d; border-color: #bbf7d0; }
+        .j-dead { background: #111827; color: #f9fafb; border-color: #374151; }
+        .j-refer { background: #fefce8; color: #a16207; border-color: #fde68a; }
+
+        .visit-date-badge {
+            display: inline-flex; align-items: center; justify-content: center;
+            background: #fff; border: 1px solid var(--w-primary-20); color: var(--w-primary);
+            border-radius: 8px; padding: 4px 10px; font-size: 0.75rem; font-weight: 600; margin-top: 6px; width: 100%;
+        }
+
+        .hn-chip {
+            display: inline-block; font-family: 'Prompt', sans-serif; font-size: 0.85rem; font-weight: 700;
+            color: var(--w-primary); background: var(--w-light); border: 1px solid var(--w-primary-20);
+            padding: 3px 10px; border-radius: 6px; letter-spacing: 0.03em; margin-bottom: 4px;
+        }
+        .patient-name { font-weight: 700; color: #2c3e50; font-size: 1rem; }
+        .patient-type { display: inline-block; margin-top: 4px; font-size: 0.75rem; color: #64748b; }
+        .dept-text { font-size: 0.82rem; color: #64748b; display: block; margin-top: 2px;}
+        .dx-text {
+            font-size: 0.85rem; color: #374151; background: #f8fafc; padding: 6px 10px; border-radius: 6px; border: 1px solid var(--border-soft);
+            display: inline-block; max-width: 100%; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; margin-bottom: 4px;
+        }
+
+        /* ── Status Badges (Real-time style) ── */
+        .st-badge {
+            display: inline-flex; align-items: center; gap: 5px;
+            padding: 5px 12px; border-radius: 50px;
+            font-family: 'Prompt', sans-serif; font-size: .75rem; font-weight: 600; white-space: nowrap;
+        }
+        .st-admit { background: #dcfce7; color: #166534; border: 1px solid #bbf7d0; }
+        .st-wait { background: #fef9c3; color: #854d0e; border: 1px solid #fde68a; }
+        .st-dc { background: #f1f5f9; color: #475569; border: 1px solid #e2e8f0; }
+        .st-refer { background: #eff6ff; color: #1d4ed8; border: 1px solid #bfdbfe; }
+        .st-dead { background: #1f2937; color: #f9fafb; border: 1px solid #374151; }
+        .st-er-wait { background: #fff1f2; color: #b91c1c; border: 1px solid #fecaca; }
+        .st-none { background: #f9fafb; color: #9ca3af; border: 1px solid #e5e7eb; }
+
+        /* ── Buttons ──────────────────────────────────────── */
+        .btn-theme {
+            background: var(--w-primary); color: #fff; border: none; border-radius: 10px;
+            padding: 8px 20px; font-family: 'Prompt', sans-serif; font-weight: 600; font-size: 0.85rem; transition: all 0.2s ease;
+        }
+        .btn-theme:hover { filter: brightness(1.1); color: #fff; transform: translateY(-1px); box-shadow: 0 4px 12px var(--w-primary-20); }
+        .btn-outline-theme {
+            background: transparent; color: var(--w-primary); border: 1.5px solid var(--w-primary); border-radius: 10px;
+            padding: 7px 20px; font-family: 'Prompt', sans-serif; font-weight: 600; font-size: 0.85rem; transition: all 0.2s ease;
+        }
+        .btn-outline-theme:hover { background: var(--w-primary-10); color: var(--w-primary); transform: translateY(-1px); }
+
+        /* ── Pagination ───────────────────────────────────── */
+        .page-link { border-radius: 8px !important; margin: 0 2px; font-size: 0.82rem; color: var(--w-primary); }
+        .page-item.active .page-link { background: var(--w-primary); border-color: var(--w-primary); color: #fff; }
+
+        /* ── Fade-in animation ────────────────────────────── */
+        @keyframes fadeUp { from { opacity:0; transform:translateY(16px); } to { opacity:1; transform:translateY(0); } }
+        .kpi-card, .chart-container, .table-custom { animation: fadeUp 0.45s ease both; }
+        .kpi-card:nth-child(1) { animation-delay: 0.05s; }
+        .kpi-card:nth-child(2) { animation-delay: 0.10s; }
+        .kpi-card:nth-child(3) { animation-delay: 0.15s; }
+        .kpi-card:nth-child(4) { animation-delay: 0.20s; }

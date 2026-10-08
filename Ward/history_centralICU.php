@@ -1,0 +1,714 @@
+<?php 
+// 1. Config & Session
+error_reporting(E_ALL);
+ini_set('display_errors', 1);
+
+session_start();
+if (!isset($_SESSION['user_id'])) { header("Location: ../login.php"); exit(); }
+require_once '../database/db_conn.php'; 
+
+$current_user_name = strtolower(trim($_SESSION['name']));
+$user_role = $_SESSION['role'] ?? '';
+
+// 🚨 ป้องกันแผนกอื่นหลุดเข้ามาหน้านี้ (อนุญาตเฉพาะ ICU, Admin, PCT)
+if ($current_user_name !== 'icu' && $user_role !== 'admin' && $current_user_name !== 'pct') {
+    header("Location: history_centralWard.php");
+    exit();
+}
+
+$path_prefix = "../"; 
+// 💡 ธีมสีส้ม (ICU)
+$themeColor = '#FF8C00'; 
+$themeDark  = '#f59e0b'; 
+$themeLight = '#ffedd5'; 
+$bgColor    = '#fff7ed'; 
+$dashTitle  = 'ICU DASHBOARD';
+
+// 2. รับค่า Search & Pagination
+$search = isset($_GET['search']) ? mysqli_real_escape_string($conn, $_GET['search']) : '';
+$search_date = isset($_GET['search_date']) ? mysqli_real_escape_string($conn, $_GET['search_date']) : '';
+$page = isset($_GET['page']) ? (int)$_GET['page'] : 1;
+$limit = 10; 
+$offset = ($page - 1) * $limit;
+
+// 3. สร้างเงื่อนไข SQL
+$whereSQL = " WHERE 1=1 ";
+if (!empty($search)) {
+    $whereSQL .= " AND (p.hn LIKE '%$search%' OR p.patient_name LIKE '%$search%' OR p.patient_id_card LIKE '%$search%') ";
+}
+if (!empty($search_date)) {
+    $whereSQL .= " AND DATE(w.admit_date) = '$search_date' "; 
+}
+
+// กรองเฉพาะประวัติที่เป็นของ ICU เท่านั้น
+$icuFilter = " AND w.admit_type LIKE '%ICU%' ";
+
+// =========================================================
+// 🚀 ระบบ EXPORT TO EXCEL
+// =========================================================
+if (isset($_GET['export']) && $_GET['export'] == 'excel') {
+    $filename = "ICU_Report_" . date('Ymd_His') . ".xls";
+    
+    // ตั้งค่า Header ให้เว็บบราวเซอร์รู้ว่านี่คือไฟล์ Excel
+    header("Content-Type: application/vnd.ms-excel; charset=utf-8");
+    header("Content-Disposition: attachment; filename=\"$filename\"");
+    header("Pragma: no-cache");
+    header("Expires: 0");
+
+    // ดึงข้อมูลตามเงื่อนไข (ไม่จำกัดจำนวน Limit) ดึงข้อมูลส่วนตัว + ข้อมูลแผนก
+    $sqlExport = "
+        SELECT p.hn, p.patient_id_card, p.patient_name, p.age, p.weight, p.height, p.bmi, p.person_type, p.department,
+               w.*
+        FROM ward_details w
+        JOIN cases p ON w.case_id = p.id
+        $whereSQL $icuFilter
+        ORDER BY w.id DESC
+    ";
+    $resultExport = mysqli_query($conn, $sqlExport);
+    
+    // สร้างตาราง HTML เพื่อแปลงเป็นโครงสร้าง Excel
+    echo '<html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:x="urn:schemas-microsoft-com:office:excel" xmlns="http://www.w3.org/TR/REC-html40">';
+    echo '<head><meta http-equiv="Content-type" content="text/html;charset=utf-8" /></head>';
+    echo '<body>';
+    echo '<table border="1">';
+    echo '<tr style="background-color: #ea580c; color: white;">';
+    echo '<th>HN</th>';
+    echo '<th>เลขประจำตัวประชาชน</th>';
+    echo '<th>ชื่อ-นามสกุล</th>';
+    echo '<th>อายุ</th>';
+    echo '<th>น้ำหนัก</th>';
+    echo '<th>ส่วนสูง</th>';
+    echo '<th>BMI</th>';
+    echo '<th>ประเภทกำลังพล</th>';
+    echo '<th>สังกัด/หน่วย</th>';
+    echo '<th>AN</th>';
+    echo '<th>วันที่รับเข้ารักษา</th>';
+    echo '<th>แผนกที่ Admit</th>';
+    echo '<th>เวลาเริ่มมีอาการ (Onset)</th>';
+    echo '<th>เวลาถึง รพ.</th>';
+    echo '<th>ระยะเวลา ER -> ICU (นาที)</th>';
+    echo '<th>วินิจฉัยแรกรับแผนกต้นทาง (Initial Dx)</th>';
+    echo '<th>วินิจฉัยเข้า ICU (ICU Dx)</th>';
+    echo '<th>วินิจฉัยสุดท้าย (Final Dx)</th>';
+    echo '<th>CoreTemp แรกรับ (°C)</th>';
+    echo '<th>CoreTemp 30 นาที (°C)</th>';
+    echo '<th>Control Temp ได้หรือไม่</th>';
+    echo '<th>สถานะการรักษา (Status)</th>';
+    echo '<th>วันที่จำหน่าย (Discharge Date)</th>';
+    echo '<th>สถานะการจำหน่าย</th>';
+    echo '<th>รายละเอียดการจำหน่าย/รพ.ที่ส่งต่อ</th>';
+    echo '<th>สาเหตุการเสียชีวิต</th>';
+    echo '</tr>';
+
+    if ($resultExport && mysqli_num_rows($resultExport) > 0) {
+        while ($row = mysqli_fetch_assoc($resultExport)) {
+            echo '<tr>';
+            echo '<td style="mso-number-format:\'\@\';">' . htmlspecialchars((string)$row['hn']) . '</td>';
+            echo '<td style="mso-number-format:\'\@\';">' . htmlspecialchars((string)$row['patient_id_card']) . '</td>';
+            echo '<td>' . htmlspecialchars((string)$row['patient_name']) . '</td>';
+            echo '<td>' . htmlspecialchars((string)$row['age']) . '</td>';
+            echo '<td>' . htmlspecialchars((string)$row['weight']) . '</td>';
+            echo '<td>' . htmlspecialchars((string)$row['height']) . '</td>';
+            echo '<td>' . htmlspecialchars((string)$row['bmi']) . '</td>';
+            echo '<td>' . htmlspecialchars((string)$row['person_type']) . '</td>';
+            echo '<td>' . htmlspecialchars((string)$row['department']) . '</td>';
+            echo '<td style="mso-number-format:\'\@\';">' . htmlspecialchars((string)$row['an']) . '</td>';
+            echo '<td>' . htmlspecialchars((string)$row['admit_date']) . '</td>';
+            echo '<td>' . htmlspecialchars((string)$row['admit_type']) . '</td>';
+            echo '<td>' . htmlspecialchars((string)$row['icu_time_symptoms']) . '</td>';
+            echo '<td>' . htmlspecialchars((string)$row['icu_time_hospital']) . '</td>';
+            echo '<td>' . htmlspecialchars((string)$row['icu_time_er_to_icu']) . '</td>';
+            echo '<td>' . htmlspecialchars((string)$row['initial_diagnosis']) . '</td>';
+            echo '<td>' . htmlspecialchars((string)$row['icu_diagnosis']) . '</td>';
+            echo '<td>' . htmlspecialchars((string)$row['final_diagnosis']) . '</td>';
+            echo '<td>' . htmlspecialchars((string)$row['icu_core_temp_first']) . '</td>';
+            echo '<td>' . htmlspecialchars((string)$row['icu_core_temp_30min']) . '</td>';
+            echo '<td>' . htmlspecialchars((string)$row['icu_control_temp']) . '</td>';
+            echo '<td>' . htmlspecialchars((string)$row['status']) . '</td>';
+            echo '<td>' . htmlspecialchars((string)$row['discharge_date']) . '</td>';
+            echo '<td>' . htmlspecialchars((string)$row['discharge_status']) . '</td>';
+            echo '<td>' . htmlspecialchars((string)$row['discharge_detail']) . '</td>';
+            echo '<td>' . htmlspecialchars((string)$row['death_cause']) . '</td>';
+            echo '</tr>';
+        }
+    } else {
+        echo '<tr><td colspan="26">ไม่มีข้อมูล</td></tr>';
+    }
+    echo '</table>';
+    echo '</body></html>';
+    exit(); // สั่งหยุดการทำงาน เพื่อไม่ให้หน้าเว็บปกติถูกพิมพ์ลงไปในไฟล์ Excel ด้วย
+}
+
+// 💡 4. Query นับจำนวนทั้งหมด
+$sqlCount = "SELECT COUNT(DISTINCT w.case_id) as total 
+             FROM ward_details w 
+             JOIN cases p ON w.case_id = p.id 
+             $whereSQL $icuFilter";
+$resCount = mysqli_query($conn, $sqlCount);
+$rowCount = mysqli_fetch_assoc($resCount);
+$totalRows = $rowCount['total'] ?? 0;
+$totalPages = ceil($totalRows / $limit);
+
+// 💡 5. Query ดึงข้อมูลจริง (แยกตามการเข้าแผนกแต่ละรอบ)
+$sql = "
+    SELECT p.id as case_id, p.hn, p.patient_name, p.age, p.person_type, p.department, p.created_at, MAX(w.id) as max_ward_id
+    FROM ward_details w 
+    JOIN cases p ON w.case_id = p.id 
+    $whereSQL $icuFilter 
+    GROUP BY w.case_id
+    ORDER BY max_ward_id DESC 
+    LIMIT $offset, $limit
+";
+
+$main_result = mysqli_query($conn, $sql);
+
+// Helper Function: สร้าง Timeline แนวตั้ง (ล่าสุดอยู่บนสุด)
+function getPatientTimeline($conn, $case_id) {
+    $steps = [];
+    
+    $qER = $conn->query("SELECT id, disposition, admit_type, hospital_arrival_datetime, recorded_at FROM er_details WHERE case_id = '$case_id' ORDER BY id DESC LIMIT 1");
+    $er_data = null;
+    if ($qER && $qER->num_rows > 0) { 
+        $er_data = $qER->fetch_assoc();
+        $steps[] = ['type' => 'er', 'label' => 'ER', 'icon' => 'fa-truck-medical', 'datetime' => $er_data['hospital_arrival_datetime'] ?? null]; 
+    }
+    
+    $qWard = $conn->query("SELECT admit_type, status, discharge_status, admit_date, discharge_date FROM ward_details WHERE case_id = '$case_id' ORDER BY id ASC");
+    $ward_count = 0;
+    if ($qWard && $qWard->num_rows > 0) {
+        while ($w = $qWard->fetch_assoc()) {
+            $ward_count++;
+            $j_class = 'default';
+            if(stripos($w['admit_type'], 'ICU') !== false) { $j_class = 'icu'; }
+            elseif(stripos($w['admit_type'], 'RCU') !== false) { $j_class = 'rcu'; }
+            elseif(stripos($w['admit_type'], 'A4') !== false) { $j_class = 'a4'; }
+            elseif(stripos($w['admit_type'], 'B3') !== false) { $j_class = 'b3'; }
+
+            $lbl = $w['admit_type'];
+            if ($w['status'] == 'AdmitWait') { $lbl .= ' (รอรับ)'; }
+            
+            $steps[] = ['type' => $j_class, 'label' => $lbl, 'icon' => 'fa-bed-pulse', 'datetime' => $w['admit_date'] ?? null];
+            
+            if ($w['status'] == 'Discharged') { 
+                if ($w['discharge_status'] == 'Dead') {
+                    $steps[] = ['type' => 'dead', 'label' => 'เสียชีวิต', 'icon' => 'fa-book-skull'];
+                } elseif ($w['discharge_status'] == 'Refer') {
+                    $steps[] = ['type' => 'refer', 'label' => 'Refer', 'icon' => 'fa-ambulance'];
+                } else {
+                    $steps[] = ['type' => 'dc', 'label' => 'D/C', 'icon' => 'fa-house-circle-check', 'datetime' => $w['discharge_date'] ?? null]; 
+                }
+            }
+            elseif ($w['status'] == 'Dead') { $steps[] = ['type' => 'dead', 'label' => 'เสียชีวิต', 'icon' => 'fa-book-skull']; }
+            elseif ($w['status'] == 'Refer') { $steps[] = ['type' => 'refer', 'label' => 'Refer', 'icon' => 'fa-ambulance']; }
+        }
+    }
+    
+    if ($ward_count == 0 && $er_data && $er_data['disposition'] == 'Admit' && !empty($er_data['admit_type'])) {
+        $w_type = $er_data['admit_type'];
+        $j_class = 'default';
+        if(stripos($w_type, 'ICU') !== false) { $j_class = 'icu'; }
+        elseif(stripos($w_type, 'RCU') !== false) { $j_class = 'rcu'; }
+        elseif(stripos($w_type, 'A4') !== false) { $j_class = 'a4'; }
+        elseif(stripos($w_type, 'B3') !== false) { $j_class = 'b3'; }
+        
+        $steps[] = ['type' => $j_class, 'label' => $w_type . ' (รอรับ)', 'icon' => 'fa-bed-pulse'];
+    }
+    if ($ward_count == 0 && $er_data) {
+        if ($er_data['disposition'] == 'Dead') {
+            $steps[] = ['type' => 'dead', 'label' => 'เสียชีวิต', 'icon' => 'fa-book-skull'];
+        } elseif ($er_data['disposition'] == 'Refer') {
+            $steps[] = ['type' => 'refer', 'label' => 'Refer', 'icon' => 'fa-ambulance'];
+        } elseif ($er_data['disposition'] == 'Discharge') {
+            $steps[] = ['type' => 'dc', 'label' => 'D/C', 'icon' => 'fa-house-circle-check', 'datetime' => $er_data['recorded_at'] ?? null];
+        }
+    }
+    
+    if(empty($steps)) return '<span class="text-muted small">- ไม่มีข้อมูล -</span>';
+
+    // 💡 REVERSE ARRAYS: เพื่อให้สถานะล่าสุดอยู่บนสุด
+    $steps = array_reverse($steps);
+
+    // 💡 จัดให้อยู่ชิดซ้าย (align-items-start) เพื่อให้เข้ากับตัวหนังสือในคอลัมน์ของหน้า Visit
+    $html = '<div class="journey-box d-flex flex-column align-items-center gap-1 mt-2">';
+    foreach ($steps as $index => $step) {
+        $html .= '<span class="j-step j-' . $step['type'] . ' text-center w-100" style="max-width: fit-content;">';
+        $html .= '<i class="fa-solid ' . $step['icon'] . ' me-1"></i> ' . $step['label'];
+        
+        // แสดงวันที่ใต้ label
+        if (!empty($step['datetime'])) {
+            $formatted = date('d/m/Y H:i', strtotime($step['datetime']));
+            $html .= '<br><small style="font-size: 0.7rem; opacity: 0.8;">' . $formatted . '</small>';
+        }
+        
+        $html .= '</span>';
+        
+        if ($index < count($steps) - 1) {
+            $html .= '<i class="fa-solid fa-arrow-up j-arrow my-1" style="font-size: 0.65rem; color: #cbd5e1;"></i>';
+        }
+    }
+    $html .= '</div>';
+    
+    return $html;
+}
+?>
+
+<!DOCTYPE html>
+<html lang="th">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ทะเบียนประวัติผู้ป่วยรวม (ICU)</title>
+    
+    <link href="../bootstrap-5.0.2-dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Sarabun:wght@300;400;500;600;700&family=Prompt:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    
+    <style>
+        :root {
+            --theme-main:  <?php echo $themeColor; ?>;
+            --theme-dark:  <?php echo $themeDark; ?>;
+            --theme-light: <?php echo $themeLight; ?>;
+            --theme-bg:    <?php echo $bgColor; ?>;
+            --theme-10:    rgba(234, 88, 12, 0.08);
+            --theme-20:    rgba(234, 88, 12, 0.15);
+            --border:  #e5e7eb;
+            --text:    #111827;
+            --soft:    #6b7280;
+        }
+
+        *, *::before, *::after { box-sizing: border-box; }
+
+        body {
+            font-family: 'Sarabun', sans-serif;
+            background: var(--theme-bg);
+            background-image: radial-gradient(ellipse 80% 40% at 50% -15%, var(--theme-light), transparent);
+            color: var(--text);
+            min-height: 100vh;
+        }
+
+        h1, h2, h3, h4, h5, h6 { font-family: 'Prompt', sans-serif; }
+
+        .page-wrap { max-width: 100%; margin: 0 auto; padding: 20px 30px 20px; width: 100%; }
+        body > .container, body > .container-fluid { max-width: 100% !important; padding-left: 50px !important; padding-right: 50px !important; }
+
+        .page-hero {
+            background: linear-gradient(135deg, var(--theme-dark) 0%, var(--theme-main) 60%, #fdba74 100%);
+            border-radius: 20px; padding: 32px 36px; margin-bottom: 25px; position: relative; overflow: hidden; box-shadow: 0 10px 35px rgba(234, 88, 12, 0.2);
+        }
+        .page-hero::before { content: ''; position: absolute; top: -50px; right: -30px; width: 220px; height: 220px; background: rgba(255,255,255,.15); border-radius: 50%; }
+        .page-hero::after { content: ''; position: absolute; bottom: -60px; right: 110px; width: 140px; height: 140px; background: rgba(255,255,255,.08); border-radius: 50%; }
+        .hero-eyebrow { display: inline-flex; align-items: center; gap: 7px; background: rgba(255,255,255,.2); border: 1px solid rgba(255,255,255,.3); color: #fff; padding: 5px 16px; border-radius: 50px; font-size: .75rem; font-weight: 600; letter-spacing: .06em; margin-bottom: 12px; backdrop-filter: blur(5px); }
+        .page-hero h3 { color: #fff; font-size: 1.6rem; font-weight: 700; margin: 0 0 6px; text-shadow: 0 2px 4px rgba(0,0,0,0.15); }
+        .page-hero p  { color: rgba(255,255,255,.95); font-size: .9rem; margin: 0; font-weight: 400; }
+        .hero-stat { position: absolute; right: 36px; top: 50%; transform: translateY(-50%); text-align: center; }
+        .hero-stat .stat-num { font-family: 'Prompt', sans-serif; font-size: 2.5rem; font-weight: 700; color: #fff; line-height: 1; text-shadow: 0 2px 8px rgba(0,0,0,0.15); }
+        .hero-stat .stat-label { font-size: .75rem; color: rgba(255,255,255,.9); letter-spacing: .06em; font-weight: 500; }
+
+        .main-card { background: #fff; border-radius: 20px; border: 1px solid rgba(234, 88, 12, 0.1); box-shadow: 0 8px 30px rgba(0,0,0,.04); overflow: hidden; animation: fadeUp .4s ease both; }
+        @keyframes fadeUp { from { opacity:0; transform:translateY(16px); } to { opacity:1; transform:translateY(0); } }
+
+        .search-bar-wrap { padding: 24px 28px 20px; border-bottom: 1px solid var(--border); background: #fffaf5; }
+        .search-bar-wrap .form-label-sm { font-family: 'Prompt', sans-serif; font-size: .72rem; font-weight: 600; color: var(--soft); text-transform: uppercase; margin-bottom: 6px; display: block; }
+        .search-bar-wrap .form-control, .search-bar-wrap .input-group-text { border-color: var(--border); border-radius: 10px !important; font-size: .9rem; height: 42px; }
+        .search-bar-wrap .form-control:focus { border-color: var(--theme-main); box-shadow: 0 0 0 3px var(--theme-light); outline: none; }
+        .search-bar-wrap .input-group-text { background: var(--theme-bg); color: var(--theme-dark); border-right: none; border-radius: 10px 0 0 10px !important; }
+        .search-bar-wrap .input-group .form-control { border-left: none; border-radius: 0 10px 10px 0 !important; }
+        .btn-search { background: var(--theme-main); color: #fff; border: none; border-radius: 10px; padding: 0 22px; height: 42px; font-weight: 600; font-size: .87rem; display: inline-flex; align-items: center; justify-content: center; gap: 6px; transition: all .2s; }
+        .btn-search:hover { filter: brightness(1.1); color: #fff; transform: translateY(-1px); box-shadow: 0 4px 10px rgba(234, 88, 12, 0.25); }
+        .btn-clear { background: #f1f5f9; color: var(--soft); border: 1.5px solid var(--border); border-radius: 10px; padding: 0 16px; height: 42px; font-weight: 500; font-size: .87rem; display: inline-flex; align-items: center; justify-content: center; gap: 6px; transition: all .2s; }
+        .btn-clear:hover { background: #e2e8f0; color: var(--text); }
+        .search-active-bar { display: flex; align-items: center; gap: 8px; padding: 8px 28px; background: #fef9c3; border-bottom: 1px solid #fde68a; font-size: .82rem; color: #92400e; flex-wrap: wrap; }
+
+        .registry-table { margin: 0; }
+        .registry-table thead th { 
+            font-family: 'Prompt', sans-serif; font-size: .85rem; font-weight: 600; 
+            color: #475569; background: #fffaf5; border-bottom: 2px solid #fed7aa; border-top: none; padding: 18px 16px; 
+        }
+        .registry-table tbody td { padding: 20px 16px; vertical-align: middle; border-bottom: 1px solid #f1f5f9; font-size: .95rem; }
+        .registry-table tbody tr { cursor: pointer; transition: background .2s ease; }
+        .registry-table tbody tr:hover { background: #fff5eb; }
+
+        .row-num { display: inline-flex; align-items: center; justify-content: center; font-size: .95rem; font-weight: 700; color: #475569; }
+        
+        .visit-date-badge {
+            display: inline-flex; flex-direction: column; align-items: center; justify-content: center;
+            background: #fff; border: 1.5px solid #fed7aa; color: var(--theme-dark);
+            border-radius: 12px; padding: 8px 14px; font-size: 0.8rem; font-weight: 600; width: 100%;
+        }
+
+        .patient-name { font-weight: 700; color: var(--text); font-size: 1.05rem; }
+        .patient-type { display: inline-block; margin-top: 6px; font-size: .75rem; color: #64748b; background: #f1f5f9; border: 1px solid #e2e8f0; padding: 2px 8px; border-radius: 4px;}
+        .dept-text { font-size: .85rem; color: #6b7280; display: inline-block; margin-top: 4px;}
+
+        /* ไทม์ไลน์และสเตตัส */
+        .journey-box { display: flex; flex-wrap: wrap; align-items: center; justify-content: center; gap: 4px; margin-top: 2px; }
+        .j-step { padding: 3px 10px; border-radius: 50px; font-weight: 600; font-family: 'Prompt', sans-serif; font-size: 0.75rem; white-space: nowrap; border: 1px solid transparent; box-shadow: 0 1px 2px rgba(0,0,0,0.05); }
+        .j-arrow { color: #cbd5e1; font-size: 0.65rem; }
+        .j-er { background: #fff7ed; color: #ea580c; border-color: #fdba74; } 
+        .j-icu { background: #fef2f2; color: #b91c1c; border-color: #fecaca; } 
+        .j-rcu { background: #fffbeb; color: #b45309; border-color: #fde68a; } 
+        .j-a4 { background: #f5f3ff; color: #6d28d9; border-color: #ede9fe; } 
+        .j-b3 { background: #f0fdfa; color: #0f766e; border-color: #ccfbf1; } 
+        .j-default { background: #f1f5f9; color: #475569; border-color: #cbd5e1; }
+        .j-dc { background: #ecfdf5; color: #15803d; border-color: #bbf7d0; }
+        .j-dead { background: #111827; color: #f9fafb; border-color: #374151; }
+        .j-refer { background: #fefce8; color: #a16207; border-color: #fde68a; }
+
+        .st-badge { display: inline-flex; align-items: center; justify-content: center; gap: 6px; padding: 6px 14px; border-radius: 50px; font-family: 'Prompt', sans-serif; font-size: .8rem; font-weight: 600; white-space: nowrap; margin-bottom: 6px; width: 100%;}
+
+        .btn-view { display: inline-flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px; padding: 10px 16px; background: #fff; color: var(--theme-dark); border: 1px solid var(--theme-light); border-radius: 12px; font-weight: 600; font-size: .85rem; font-family: 'Prompt', sans-serif; transition: all .2s; box-shadow: 0 2px 6px rgba(0,0,0,0.02); width: 100%;}
+        .btn-view:hover { background: var(--theme-main); border-color: var(--theme-main); color: #fff; transform: translateY(-2px); box-shadow: 0 6px 15px rgba(234, 88, 12, 0.25);}
+        .btn-view i { font-size: 1.2rem; }
+
+        .pagination-wrap { padding: 20px 28px; border-top: 1px solid var(--border); display: flex; align-items: center; justify-content: space-between; background: #fafafa; flex-wrap: wrap; gap: 15px;}
+        .page-link { border-radius: 10px !important; border: 1px solid var(--border); color: var(--soft); font-weight: 600; transition: all .2s; margin: 0 2px;}
+        .page-link:hover { border-color: var(--theme-main); color: var(--theme-main); background: var(--theme-bg); }
+        .page-item.active .page-link { background: var(--theme-main); border-color: var(--theme-main); color: #fff; box-shadow: 0 4px 10px rgba(234, 88, 12, 0.2); }
+        
+        .empty-state { padding: 64px 20px; text-align: center; }
+        .empty-state .empty-icon { width: 72px; height: 72px; background: #f3f4f6; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 1.8rem; color: #d1d5db; margin: 0 auto 18px; }
+        .empty-state h6 { font-size: 1rem; color: var(--text); margin-bottom: 6px; font-weight: 600; }
+        .empty-state p  { font-size: .85rem; color: var(--soft); margin: 0; }
+
+        /* ==========================================
+           🌟 MOBILE RESPONSIVE CSS
+           ========================================== */
+        @media (max-width: 768px) {
+            .page-wrap { padding: 15px; }
+            body > .container, body > .container-fluid { padding-left: 15px !important; padding-right: 15px !important; }
+            
+            .page-hero { padding: 25px 20px; text-align: center; }
+            .hero-stat { position: static; transform: none; margin-top: 20px; display: block !important; }
+            
+            .search-bar-wrap { padding: 20px 15px; }
+            .search-bar-wrap .row { flex-direction: column; }
+            .search-bar-wrap .col-md-5, .search-bar-wrap .col-md-3, .search-bar-wrap .col-md-auto { width: 100%; margin-bottom: 10px; }
+            .search-bar-wrap .ms-auto { margin-left: 0 !important; margin-top: 10px; }
+            .btn-search, .btn-clear, .btn-success { width: 100%; justify-content: center; }
+            
+            .search-active-bar { padding: 12px 15px; }
+
+            /* แปลงตารางเป็น Card View */
+            .table-responsive { border: none; }
+            .registry-table, .registry-table tbody, .registry-table tr, .registry-table td { display: block; width: 100%; }
+            .registry-table thead { display: none; }
+            
+            .registry-table tr {
+                margin-bottom: 15px;
+                background-color: #fff;
+                border: 1px solid var(--border);
+                border-radius: 15px;
+                box-shadow: 0 4px 10px rgba(0,0,0,0.03);
+                padding: 10px 15px;
+                position: relative;
+            }
+            
+            .registry-table td {
+                text-align: left !important;
+                padding: 12px 0 !important;
+                border-bottom: 1px dashed #f1f3f5;
+                position: relative;
+            }
+            .registry-table td:last-child { border-bottom: none; padding-bottom: 5px !important; }
+            
+            /* สร้าง Header ของแต่ละบรรทัดจาก data-label */
+            .registry-table td::before {
+                content: attr(data-label);
+                display: block;
+                font-size: 0.8rem;
+                font-weight: 600;
+                color: #a0aec0;
+                margin-bottom: 6px;
+                text-transform: uppercase;
+                letter-spacing: 0.5px;
+            }
+
+            .registry-table td[data-label="#"] { position: absolute; top: 15px; right: 15px; border-bottom: none; padding: 0 !important; width: auto; }
+            .registry-table td[data-label="#"]::before { display: none; }
+            .row-num { background: #f1f5f9; padding: 4px 10px; border-radius: 8px; font-size: 0.85rem; }
+            
+            .visit-date-badge { flex-direction: row; gap: 10px; padding: 12px; }
+            .visit-date-badge i { margin-bottom: 0 !important; font-size: 1.3rem !important; }
+            
+            .btn-view { flex-direction: row; font-size: 1rem; padding: 12px; background: var(--theme-main); color: #fff; border: none;}
+            .btn-view:hover { background: var(--theme-dark); }
+            
+            .pagination-wrap { flex-direction: column; justify-content: center; text-align: center; }
+            .pagination { flex-wrap: wrap; justify-content: center; }
+        }
+    </style>
+</head>
+
+<body>
+
+<?php 
+    if (file_exists('../header_icu.php')) { require_once '../header_icu.php'; }
+    else { require_once '../header_ward.php'; }
+?>
+
+<div class="page-wrap">
+    
+    <div class="page-hero">
+        <div class="hero-eyebrow">
+            <i class="fa-solid fa-circle-dot fa-beat" style="color:#fff;"></i>
+            <?php echo $dashTitle; ?>
+        </div>
+        <h3><i class="fa-solid fa-address-book me-2"></i>ทะเบียนประวัติผู้ป่วยรวม (ICU)</h3>
+        <p>ระบบค้นหาและแสดงประวัติการรักษาผู้ป่วย (ข้อมูลเฉพาะของแผนกวิกฤต)</p>
+        <div class="hero-stat d-none d-md-block">
+            <div class="stat-num"><?php echo number_format($totalRows); ?></div>
+            <div class="stat-label">จำนวนผู้ป่วยที่เคยดูแล</div>
+        </div>
+    </div>
+
+    <div class="main-card">
+        <div class="search-bar-wrap">
+            <form method="GET">
+                <div class="row g-2 align-items-end">
+                    <div class="col-md-5">
+                        <span class="form-label-sm"><i class="fa-solid fa-magnifying-glass me-1"></i>ค้นหาผู้ป่วย</span>
+                        <div class="input-group">
+                            <span class="input-group-text"><i class="fa-solid fa-user"></i></span>
+                            <input type="text" class="form-control" name="search" placeholder="HN, ชื่อ-สกุล หรือเลขบัตรประชาชน..." value="<?php echo htmlspecialchars((string)$search); ?>">
+                        </div>
+                    </div>
+                    <div class="col-md-3">
+                        <span class="form-label-sm"><i class="fa-regular fa-calendar me-1"></i>กรองตามวันที่รับเข้ารักษา(Admit)</span>
+                        <div class="input-group">
+                            <span class="input-group-text"><i class="fa-regular fa-calendar-check"></i></span>
+                            <input type="date" class="form-control" name="search_date" value="<?php echo htmlspecialchars((string)$search_date); ?>">
+                        </div>
+                    </div>
+                    <div class="col-md-auto">
+                        <button class="btn-search btn" type="submit">
+                            <i class="fa-solid fa-magnifying-glass"></i> ค้นหา
+                        </button>
+                    </div>
+                    <?php if(!empty($search) || !empty($search_date)): ?>
+                    <div class="col-md-auto">
+                        <a href="history_centralICU.php" class="btn-clear btn">
+                            <i class="fa-solid fa-rotate-left"></i> ล้างค่า
+                        </a>
+                    </div>
+                    <?php endif; ?>
+
+                    <!-- 💡 EXPORT BUTTON -->
+                    <div class="col-md-auto ms-auto d-flex align-items-end">
+                        <a href="?export=excel&search=<?php echo urlencode($search); ?>&search_date=<?php echo urlencode($search_date); ?>" 
+                           class="btn btn-success d-flex align-items-center gap-2 shadow-sm" 
+                           style="height: 42px; border-radius: 10px; font-family: 'Prompt', sans-serif; font-weight: 600; background-color: var(--theme-main); border-color: var(--theme-main);">
+                            <i class="fa-solid fa-file-excel fs-5"></i> ส่งออก Excel
+                        </a>
+                    </div>
+                </div>
+            </form>
+        </div>
+
+        <?php if(!empty($search) || !empty($search_date)): ?>
+        <div class="search-active-bar">
+            <i class="fa-solid fa-filter-circle-xmark"></i> กำลังกรองผลลัพธ์
+            <?php if(!empty($search)): ?> — คำค้นหา: <strong>"<?php echo htmlspecialchars((string)$search); ?>"</strong><?php endif; ?>
+            <?php if(!empty($search_date)): ?> — วันที่: <strong><?php echo date('d/m/Y', strtotime($search_date)); ?></strong><?php endif; ?>
+            &nbsp;·&nbsp; พบ <strong><?php echo number_format($totalRows); ?></strong> รายการ
+        </div>
+        <?php endif; ?>
+
+        <div class="table-responsive">
+            <table class="table registry-table align-middle">
+                <thead>
+                    <tr>
+                        <th width="4%" class="text-center">#</th>
+                        <th width="10%" class="text-center">วันที่รับเข้าแผนก</th>
+                        <th width="10%">HN / AN</th>
+                        <th width="15%">ข้อมูลผู้ป่วย</th>
+                        <th width="20%">ข้อมูลรับเข้า ICU</th>
+                        <th width="12%" class="text-center">วินิจฉัยสุดท้าย</th>
+                        <th width="12%" class="text-center">ไทม์ไลน์การรักษา</th>
+                        <th width="10%" class="text-center">สถานะปัจจุบัน</th>
+                        <th width="7%" class="text-center">แฟ้มผู้ป่วย</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <?php if ($main_result && mysqli_num_rows($main_result) > 0) : ?>
+                        <?php $rowNum = $offset + 1; while($row = mysqli_fetch_assoc($main_result)) : ?>
+                            <?php
+                                $case_id_curr = $row['case_id']; 
+                                
+                                // 💡 1. ดึงข้อมูลเฉพาะของ ICU
+                                $q_ward_info = mysqli_query($conn, "SELECT an, icu_diagnosis, initial_diagnosis, final_diagnosis, status, admit_type, discharge_date, discharge_status, admit_date, icu_core_temp_first, icu_core_temp_30min, icu_control_temp, icu_time_er_to_icu 
+                                    FROM ward_details 
+                                    WHERE case_id = '$case_id_curr' AND admit_type LIKE '%ICU%' 
+                                    ORDER BY id DESC LIMIT 1");
+                                
+                                $ward_data = mysqli_fetch_assoc($q_ward_info);
+                                if (!$ward_data) continue;
+
+                                $an_text = !empty($ward_data['an']) ? $ward_data['an'] : '-';
+                                $admit_date = !empty($ward_data['admit_date']) ? $ward_data['admit_date'] : $row['created_at'];
+
+                                // 💡 ส่วนสร้าง HTML กล่องผลการรับเข้า ICU
+                                $icu_dx = !empty($ward_data['icu_diagnosis']) ? $ward_data['icu_diagnosis'] : (!empty($ward_data['initial_diagnosis']) ? $ward_data['initial_diagnosis'] : '-');
+                                $icu_ct1 = !empty($ward_data['icu_core_temp_first']) ? $ward_data['icu_core_temp_first'] . " °C" : '-';
+                                $icu_ct30 = !empty($ward_data['icu_core_temp_30min']) ? $ward_data['icu_core_temp_30min'] . " °C" : '-';
+                                $icu_ctrl = !empty($ward_data['icu_control_temp']) ? $ward_data['icu_control_temp'] : '-';
+                                $icu_time = !empty($ward_data['icu_time_er_to_icu']) ? $ward_data['icu_time_er_to_icu'] . " นาที" : '-';
+
+                                $icu_info_html = "<div class='fw-bold mb-2' style='color: var(--theme-dark); font-size: 0.95rem;' title='{$icu_dx}'><i class='fa-solid fa-heart-pulse me-1'></i> วินิจฉัย: " . mb_strimwidth($icu_dx, 0, 35, '...') . "</div>";
+                                $icu_info_html .= "<div class='row g-2'>";
+                                $icu_info_html .= "<div class='col-12'><span class='badge bg-danger text-white me-2'><i class='fa-solid fa-temperature-half me-1'></i> Temp</span> <span class='small'>แรกรับ: <strong class='text-dark'>{$icu_ct1}</strong> <span class='mx-1 text-muted'>|</span> 30 นาที: <strong class='text-dark'>{$icu_ct30}</strong></span></div>";
+                                $icu_info_html .= "<div class='col-12'><span class='badge bg-info text-dark me-2'><i class='fa-solid fa-snowflake me-1'></i> Control Temp</span> <span class='small fw-bold text-dark'>{$icu_ctrl}</span> <span class='mx-2 text-muted'>|</span> <i class='fa-solid fa-stopwatch text-secondary me-1'></i><span class='small text-dark'>ER->ICU: {$icu_time}</span></div>";
+                                $icu_info_html .= "</div>";
+
+                                // 💡 2. หาวินิจฉัยสุดท้าย
+                                $final_dx_display = '-';
+                                if (!empty($ward_data['final_diagnosis'])) {
+                                    $final_dx_display = $ward_data['final_diagnosis'];
+                                } elseif (!empty($ward_data['icu_diagnosis'])) {
+                                    $final_dx_display = $ward_data['icu_diagnosis'];
+                                } elseif (!empty($ward_data['initial_diagnosis'])) {
+                                    $final_dx_display = $ward_data['initial_diagnosis'];
+                                }
+
+                                if ($final_dx_display === '-' || empty($final_dx_display)) {
+                                    $final_dx_html = "<span class='text-muted small'>-</span>";
+                                } else {
+                                    $final_dx_html = "<div class='fw-bold text-success' style='font-size: 0.85rem;'>".htmlspecialchars($final_dx_display)."</div>";
+                                }
+
+                                // 💡 3. ดึง Timeline การรักษาแนวตั้ง (ล่าสุดบนสุด)
+                                $journey_html = getPatientTimeline($conn, $row['case_id']);
+
+                                // 💡 4. สถานะของเคส (ใช้แผนกล่าสุดที่ผู้ป่วยอยู่จริงๆ)
+                                $q_last_ward = mysqli_query($conn, "SELECT admit_type, status, discharge_status FROM ward_details WHERE case_id = '$case_id_curr' ORDER BY id DESC LIMIT 1");
+                                $last_ward = mysqli_fetch_assoc($q_last_ward);
+
+                                $status_badge = '<span class="st-badge bg-light text-dark border"><i class="fa-solid fa-minus"></i> ไม่มีข้อมูล</span>';
+                                if ($last_ward) {
+                                    $w_status = $last_ward['status'];
+                                    $w_type = $last_ward['admit_type'];
+                                    
+                                    if ($w_status == 'Active') {
+                                        $status_badge = '<span class="st-badge bg-success text-white"><i class="fa-solid fa-bed-pulse me-1"></i> Admit: '.$w_type.'</span>';
+                                    } elseif ($w_status == 'AdmitWait') {
+                                        $status_badge = '<span class="st-badge bg-warning text-dark"><i class="fa-solid fa-clock me-1"></i> '.$w_type.'</span>';
+                                    } else {
+                                        $d_status = $last_ward['discharge_status'];
+                                        if ($d_status == 'Dead') { 
+                                            $status_badge = '<span class="st-badge bg-dark text-white"><i class="fa-solid fa-book-skull me-1"></i> เสียชีวิต ('.$w_type.')</span>'; 
+                                        } elseif ($d_status == 'Refer') { 
+                                            $status_badge = '<span class="st-badge bg-primary text-white"><i class="fa-solid fa-ambulance me-1"></i> Refer ('.$w_type.')</span>'; 
+                                        } elseif ($d_status == 'Admit') {
+                                            $status_badge = '<span class="st-badge bg-warning text-dark"><i class="fa-solid fa-right-left me-1"></i> กำลังย้ายแผนก</span>';
+                                        } else { 
+                                            $status_badge = '<span class="st-badge bg-secondary text-white"><i class="fa-solid fa-house-circle-check me-1"></i> D/C: '.$w_type.'</span>'; 
+                                        }
+                                    }
+                                }
+
+                                $view_full_history = "../view_patient_full_history.php?hn=" . urlencode((string)$row['hn']);
+                            ?>
+                            <tr onclick="window.location='<?php echo htmlspecialchars((string)$view_full_history); ?>'">
+                                <td data-label="#" class="text-center position-relative align-middle"><span class="row-num"><?php echo $rowNum++; ?></span></td>
+                                <td data-label="วันที่รับเข้า" class="text-center align-middle">
+                                    <div class="visit-date-badge shadow-sm">
+                                        <i class="fa-solid fa-calendar-plus text-theme opacity-75"></i>
+                                        <div class="d-flex flex-column align-items-center justify-content-center text-start">
+                                            <span class="text-muted fw-normal d-md-none" style="font-size: 0.75rem;">Admit เข้า ICU</span>
+                                            <div><?php echo date('d/m/Y', strtotime($admit_date)); ?> <span class="small text-muted ms-1"><i class="fa-regular fa-clock me-1"></i><?php echo date('H:i', strtotime($admit_date)); ?></span></div>
+                                        </div>
+                                    </div>
+                                </td>
+                                <td data-label="HN / AN" class="align-middle">
+                                    <div style="display: flex; flex-direction: column; gap: 6px; align-items: flex-start;">
+                                        <span class="hn-chip fw-bold text-dark">HN: <?php echo htmlspecialchars((string)$row['hn']); ?></span>
+                                        <?php if($an_text !== '-'): ?>
+                                            <span class="hn-chip small" style="background: var(--theme-10); border-color: var(--theme-main); color: var(--theme-dark); padding: 2px 8px; border-radius: 4px;">AN: <?php echo htmlspecialchars($an_text); ?></span>
+                                        <?php endif; ?>
+                                    </div>
+                                </td>
+                                <td data-label="ข้อมูลผู้ป่วย" class="align-middle">
+                                    <div class="patient-name"><?php echo htmlspecialchars((string)$row['patient_name']); ?></div>
+                                    <div class="patient-type"><i class="fa-solid fa-tag me-1"></i><?php echo htmlspecialchars((string)$row['person_type'] ?? '-'); ?></div>
+                                    <div class="dept-text"><i class="fa-regular fa-building me-1"></i><?php echo htmlspecialchars((string)$row['department'] ?? '-'); ?></div>
+                                </td>
+                                <td data-label="ข้อมูลรับเข้า ICU" class="align-middle">
+                                    <div class="bg-white p-2 rounded border shadow-sm">
+                                        <?php echo $icu_info_html; ?>
+                                    </div>
+                                </td>
+                                <td data-label="วินิจฉัยสุดท้าย" class="text-center align-middle">
+                                    <?php echo $final_dx_html; ?>
+                                </td>
+                                <td data-label="ไทม์ไลน์การรักษา" class="text-center align-middle">
+                                    <?php echo $journey_html; ?>
+                                </td>
+                                <td data-label="สถานะปัจจุบัน" class="text-center align-middle">
+                                    <div class="d-flex flex-column align-items-center justify-content-center w-100">
+                                        <?php echo $status_badge; ?>
+                                    </div>
+                                </td>
+                                <td data-label="แฟ้มผู้ป่วย" class="text-center align-middle" onclick="event.stopPropagation()">
+                                    <a href="<?php echo htmlspecialchars((string)$view_full_history); ?>" class="btn-view" title="ดูประวัติเต็ม">
+                                        <i class="fa-solid fa-folder-open"></i>
+                                    </a>
+                                </td>
+                            </tr>
+                        <?php endwhile; ?>
+                    <?php else : ?>
+                        <tr>
+                            <td colspan="9">
+                                <div class="empty-state">
+                                    <div class="empty-icon"><i class="fa-regular fa-folder-open"></i></div>
+                                    <h6>ไม่พบข้อมูล</h6>
+                                    <p>ยังไม่มีประวัติผู้ป่วยในแผนก หรือลองปรับเงื่อนไขการค้นหาใหม่อีกครั้ง</p>
+                                </div>
+                            </td>
+                        </tr>
+                    <?php endif; ?>
+                </tbody>
+            </table>
+        </div>
+
+        <!-- Pagination -->
+        <?php if ($totalPages > 1): ?>
+        <div class="pagination-wrap">
+            <span class="pagination-info">
+                แสดง <?php echo number_format($offset + 1); ?>–<?php echo number_format(min($offset + $limit, $totalRows)); ?> 
+                จาก <?php echo number_format($totalRows); ?> รายการ
+            </span>
+            <nav>
+                <ul class="pagination mb-0">
+                    <li class="page-item <?php if($page <= 1) echo 'disabled'; ?>">
+                        <?php $prev_url = "?page=" . ($page - 1) . "&search=" . urlencode($search) . "&search_date=" . urlencode($search_date); ?>
+                        <a class="page-link" href="<?php echo htmlspecialchars((string)$prev_url); ?>">
+                            <i class="fa-solid fa-chevron-left" style="font-size:.7rem;"></i>
+                        </a>
+                    </li>
+                    <?php
+                    $range = 2;
+                    for ($i = 1; $i <= $totalPages; $i++) {
+                        if ($i == 1 || $i == $totalPages || ($i >= $page - $range && $i <= $page + $range)) {
+                            $active = ($i == $page) ? 'active' : '';
+                            $page_url = "?page=$i&search=" . urlencode($search) . "&search_date=" . urlencode($search_date);
+                            echo "<li class='page-item $active'><a class='page-link' href='" . htmlspecialchars((string)$page_url) . "'>$i</a></li>";
+                        } elseif ($i == $page - $range - 1 || $i == $page + $range + 1) {
+                            echo "<li class='page-item disabled'><span class='page-link' style='font-size:.8rem;'>···</span></li>";
+                        }
+                    }
+                    ?>
+                    <li class="page-item <?php if($page >= $totalPages) echo 'disabled'; ?>">
+                        <?php $next_url = "?page=" . ($page + 1) . "&search=" . urlencode($search) . "&search_date=" . urlencode($search_date); ?>
+                        <a class="page-link" href="<?php echo htmlspecialchars((string)$next_url); ?>">
+                            <i class="fa-solid fa-chevron-right" style="font-size:.7rem;"></i>
+                        </a>
+                    </li>
+                </ul>
+            </nav>
+        </div>
+        <?php endif; ?>
+
+    </div>
+</div>
+</body>
+<?php if (file_exists('../footer.php')) require_once '../footer.php'; ?>
+</html>

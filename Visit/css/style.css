@@ -1,0 +1,186 @@
+body { font-family: 'Sarabun', sans-serif; background-color: var(--v-bg); color: var(--v-text); }
+        h1, h2, h3, h4, h5, .btn, th, .nav-link { font-family: 'Prompt', sans-serif; }
+        
+        .page-header { 
+            background: white; padding: 20px 30px; border-radius: 15px; 
+            box-shadow: 0 4px 20px rgba(0,0,0,0.03); margin-bottom: 25px; 
+            border-left: 6px solid var(--v-primary); 
+            display: flex; justify-content: space-between; align-items: center; 
+        }
+
+        .nav-tabs { border-bottom: 2px solid #dee2e6; }
+        .nav-tabs .nav-link { border: none; color: #6c757d; font-weight: 500; padding: 12px 25px; border-radius: 10px 10px 0 0; transition: all 0.3s ease; }
+        .nav-tabs .nav-link:hover { color: var(--v-primary); background-color: var(--v-light); }
+        .nav-tabs .nav-link.active { color: #fff !important; background-color: var(--v-primary) !important; box-shadow: 0 -4px 12px rgba(214, 114, 141, 0.25); }
+        
+        .card-visit { border: none; border-radius: 0 15px 15px 15px; box-shadow: 0 8px 25px rgba(0,0,0,0.03); overflow: hidden; background: #fff;}
+        
+        /* ── TABLE STYLES (Desktop) ── */
+        .registry-table { margin: 0; }
+        .registry-table thead th {
+            font-family: 'Prompt', sans-serif; font-size: .8rem; font-weight: 600;
+            letter-spacing: .03em; text-transform: uppercase; color: #fff;
+            background: var(--v-primary); border-bottom: none; border-top: none; padding: 16px;
+        }
+        .registry-table tbody td { padding: 18px 16px; vertical-align: middle; border-bottom: 1px solid #f3f4f6; font-size: .9rem; }
+        .registry-table tbody tr:last-child td { border-bottom: none; }
+        .registry-table tbody tr { transition: background .15s; }
+        .registry-table tbody tr:hover { background: #fcf8f9; }
+        
+        .btn-theme { background-color: var(--v-primary); color: white; border-radius: 8px; padding: 6px 15px; transition: 0.2s; border: none;}
+        .btn-theme:hover { background-color: var(--v-primary-hover); color: white !important; transform: translateY(-1px); box-shadow: 0 4px 10px rgba(214, 114, 141, 0.25);}
+        
+        .btn-outline-theme { background-color: transparent; color: var(--v-primary); border: 1.5px solid var(--v-primary); border-radius: 8px; padding: 6px 15px; transition: 0.2s; font-weight: 600;}
+        .btn-outline-theme:hover { background-color: var(--v-light); color: var(--v-primary-hover); transform: translateY(-1px); }
+        
+        .text-theme { color: var(--v-primary) !important; }
+
+        /* ตัวเลขลำดับแถว */
+        .row-num { display: inline-flex; align-items: center; justify-content: center; width: 26px; height: 26px; background: var(--v-light); border-radius: 6px; font-size: .75rem; font-weight: 700; color: var(--v-dark); }
+
+        /* ── CHIPS & LABELS ── */
+        .hn-chip {
+            display: inline-block; font-family: 'Prompt', sans-serif; font-size: .85rem; font-weight: 700;
+            color: var(--v-primary-hover); background: var(--v-light); border: 1px solid var(--border-soft);
+            padding: 3px 10px; border-radius: 6px; letter-spacing: .03em; margin-bottom: 4px;
+        }
+        .patient-name { font-weight: 700; color: var(--v-text); font-size: 1rem; }
+        .patient-type { display: inline-block; margin-top: 4px; font-size: .75rem; color: #64748b; }
+        .dept-text { font-size: .82rem; color: #64748b; display: block; margin-top: 2px;}
+
+        /* ── DX TEXT ── */
+        .er-dx-text {
+            font-size: 0.85rem; color: #374151; background: #fdfafb;
+            padding: 6px 10px; border-radius: 6px; border: 1px solid var(--border-soft);
+            display: inline-block; max-width: 100%; white-space: nowrap;
+            overflow: hidden; text-overflow: ellipsis; margin-bottom: 4px;
+        }
+
+        /* ── JOURNEY TIMELINE ── */
+        .journey-box { display: flex; flex-wrap: wrap; align-items: center; gap: 4px; margin-top: 2px; }
+        .j-step { 
+            padding: 4px 10px; border-radius: 50px; font-weight: 600; font-family: 'Prompt', sans-serif; 
+            font-size: 0.72rem; white-space: nowrap; border: 1px solid transparent; box-shadow: 0 1px 2px rgba(0,0,0,0.05);
+        }
+        .j-arrow { color: #cbd5e1; font-size: 0.65rem; }
+        .j-er      { background: #fff7ed; color: #c2410c; border-color: #fdba74; } 
+        .j-icu     { background: #fef2f2; color: #b91c1c; border-color: #fecaca; } 
+        .j-rcu     { background: #fffbeb; color: #b45309; border-color: #fde68a; } 
+        .j-a4      { background: #f5f3ff; color: #6d28d9; border-color: #ede9fe; } 
+        .j-b3      { background: #f0fdfa; color: #0f766e; border-color: #ccfbf1; } 
+        .j-default { background: #f1f5f9; color: #475569; border-color: #cbd5e1; } 
+
+        /* ── STATUS BADGES ── */
+        .st-badge {
+            display: inline-flex; align-items: center; gap: 5px;
+            padding: 5px 12px; border-radius: 50px;
+            font-family: 'Prompt', sans-serif; font-size: .75rem; font-weight: 600; white-space: nowrap;
+        }
+        .st-dc { background: #ecfdf5; color: #047857; border: 1px solid #a7f3d0; }
+        .st-admit { background: #eff6ff; color: #1d4ed8; border: 1px solid #bfdbfe; }
+        .st-er { background: #fffbeb; color: #b45309; border: 1px solid #fde68a; }
+
+        /* 🔴 ANIMATION สำหรับเตือนให้เยี่ยม 🔴 */
+        @keyframes pulse-shake {
+            0% { transform: scale(1); }
+            10% { transform: scale(1.05) rotate(2deg); }
+            20% { transform: scale(1.05) rotate(-2deg); }
+            30% { transform: scale(1) rotate(0); }
+            100% { transform: scale(1); }
+        }
+        .shake-alert {
+            animation: pulse-shake 2s infinite ease-in-out;
+            box-shadow: 0 4px 10px rgba(0,0,0,0.15);
+        }
+
+        /* ==========================================
+           🌟 MOBILE RESPONSIVE CSS (แปลง Table เป็น Card)
+           ========================================== */
+        @media (max-width: 991px) {
+            .page-header { flex-direction: column; align-items: flex-start; padding: 15px; }
+            .page-header > div:last-child { width: 100%; margin-top: 15px; display: flex; justify-content: space-between; }
+            
+            .table-responsive { border: none; }
+            
+            /* แปลง <table> เป็น Block / Card */
+            .registry-table, .registry-table tbody, .registry-table tr, .registry-table td { display: block; width: 100%; }
+            .registry-table thead { display: none; } 
+            
+            .registry-table tr {
+                margin-bottom: 15px;
+                background-color: #fff;
+                border: 1px solid var(--border-soft);
+                border-radius: 12px;
+                box-shadow: 0 4px 6px rgba(0,0,0,0.03);
+                padding: 10px;
+                position: relative;
+            }
+            
+            .registry-table td {
+                text-align: left !important;
+                padding: 10px 5px !important;
+                border-bottom: 1px dashed #f1f3f5;
+                position: relative;
+            }
+            .registry-table td:last-child { border-bottom: none; }
+            
+            /* สร้าง Label ให้บนมือถือ */
+            .registry-table td::before {
+                content: attr(data-label);
+                display: block;
+                font-size: 0.8rem;
+                font-weight: 600;
+                color: var(--v-primary);
+                margin-bottom: 5px;
+            }
+
+            /* ตำแหน่งตัวเลข # บนการ์ดมือถือ */
+            .registry-table td[data-label="#"] { position: absolute; top: 10px; right: 10px; padding: 0 !important; border: none; width: auto; }
+            .registry-table td[data-label="#"]::before { display: none; }
+
+            /* ปรับปุ่มบนมือถือให้กดง่ายเต็มความกว้าง */
+            .registry-table .btn-theme, .registry-table .btn-outline-theme { width: 100%; margin-top: 5px; padding: 10px; font-size: 1rem; }
+            
+            .journey-box { justify-content: flex-start; }
+            .st-badge { width: 100%; justify-content: flex-start; padding: 8px 15px;}
+        }
+/* ── KPI Cards ────────────────────────────────────── */
+.kpi-card {
+    border: none; border-radius: 18px; box-shadow: 0 2px 12px rgba(0,0,0,0.05), 0 1px 3px rgba(0,0,0,0.04);
+    transition: transform 0.25s ease, box-shadow 0.25s ease; background: #fff; position: relative; overflow: hidden;
+}
+.kpi-card::after {
+    content: ''; position: absolute; top: 0; right: 0; width: 80px; height: 80px;
+    background: radial-gradient(circle at 100% 0%, var(--w-primary-10) 0%, transparent 70%); pointer-events: none;
+}
+.kpi-card::before {
+    content: ''; position: absolute; top: 0; left: 0; width: 5px; height: 100%;
+    background: linear-gradient(180deg, var(--w-primary), color-mix(in srgb, var(--w-primary) 60%, transparent));
+    border-top-left-radius: 18px; border-bottom-left-radius: 18px;
+}
+.kpi-card.border-danger::before  { background: linear-gradient(180deg, #ef4444, #dc2626); }
+.kpi-card.border-warning::before { background: linear-gradient(180deg, #f59e0b, #d97706); }
+.kpi-card.border-success::before { background: linear-gradient(180deg, #16a34a, #15803d); }
+.kpi-card.border-pink::before { background: linear-gradient(180deg, #d6728d, #b95c76); }
+.kpi-card:hover { transform: translateY(-4px); box-shadow: 0 12px 30px rgba(0,0,0,0.09); }
+.kpi-card .card-body { padding: 20px 20px 20px 24px; }
+
+.kpi-icon {
+    width: 52px; height: 52px; border-radius: 14px; display: flex; align-items: center; justify-content: center;
+    font-size: 1.4rem; background: var(--w-primary-10); color: var(--w-primary); flex-shrink: 0;
+}
+.kpi-card.border-danger .kpi-icon  { background: #fef2f2; color: #ef4444; }
+.kpi-card.border-warning .kpi-icon { background: #fffbeb; color: #f59e0b; }
+.kpi-card.border-success .kpi-icon { background: #f0fdf4; color: #16a34a; } 
+.kpi-card.border-pink .kpi-icon { background: #fae8ee; color: #d6728d; }
+.kpi-label { font-size: 0.75rem; font-weight: 600; color: #9ca3af; letter-spacing: 0.03em; margin-bottom: 4px; text-transform: uppercase; }
+.kpi-value { font-family: 'Prompt', sans-serif; font-size: 1.9rem; font-weight: 700; color: #111827; line-height: 1.1; }
+.kpi-value small { font-size: 0.85rem; font-weight: 400; color: #9ca3af; }
+
+/* ── Fade-in animation ────────────────────────────── */
+@keyframes fadeUp { from { opacity:0; transform:translateY(16px); } to { opacity:1; transform:translateY(0); } }
+.kpi-card { animation: fadeUp 0.45s ease both; }
+.kpi-card:nth-child(1) { animation-delay: 0.05s; }
+.kpi-card:nth-child(2) { animation-delay: 0.10s; }
+.kpi-card:nth-child(3) { animation-delay: 0.15s; }
+.kpi-card:nth-child(4) { animation-delay: 0.20s; }
