@@ -1,5 +1,5 @@
 <?php
-// save_treatmentER.php
+// save_treatmentGP.php
 session_start();
 // เปิดแสดง Error เพื่อให้เห็นปัญหาชัดเจน
 mysqli_report(MYSQLI_REPORT_ERROR | MYSQLI_REPORT_STRICT);
@@ -162,7 +162,7 @@ if (isset($_POST['submit_treatment'])) {
                 confirmButtonColor: '#10b981',
                 confirmButtonText: 'ตกลง'
             }).then((result) => {
-                window.location.href = 'indexER.php'; 
+                window.location.href = 'indexGP.php';
             });
         </script>
     <?php } elseif ($statusType == 'error') { ?>
@@ -178,7 +178,7 @@ if (isset($_POST['submit_treatment'])) {
             });
         </script>
     <?php } else { ?>
-        <script>window.location.href = 'indexER.php';</script>
+        <script>window.location.href = 'indexGP.php';</script>
     <?php } ?>
 </body>
 </html>

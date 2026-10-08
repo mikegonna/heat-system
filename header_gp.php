@@ -200,14 +200,14 @@ $case_count = count($incoming_patients);
                     </a>
                 </li>
                 <li class="nav-item">
-                    <a class="nav-link nav-link-modern <?php echo basename($_SERVER['PHP_SELF']) == 'indexER.php' ? 'active' : ''; ?>" 
-                       href="<?php echo $path_prefix; ?>GP/indexER.php">
+                        <a class="nav-link nav-link-modern <?php echo basename($_SERVER['PHP_SELF']) == 'indexGP.php' ? 'active' : ''; ?>"
+                              href="<?php echo $path_prefix; ?>GP/indexGP.php">
                        <i class="fa-solid fa-file-medical me-2"></i>บันทึกข้อมูล
                     </a>
                 </li>
                 <li class="nav-item">
-                    <a class="nav-link nav-link-modern <?php echo basename($_SERVER['PHP_SELF']) == 'history_centralER.php' || basename($_SERVER['PHP_SELF']) == 'history_central.php' ? 'active' : ''; ?>" 
-                       href="<?php echo $path_prefix; ?>GP/history_centralER.php">
+                        <a class="nav-link nav-link-modern <?php echo basename($_SERVER['PHP_SELF']) == 'history_centralGP.php' ? 'active' : ''; ?>"
+                              href="<?php echo $path_prefix; ?>GP/history_centralGP.php">
                        <i class="fa-solid fa-clock-rotate-left me-2"></i>ประวัติการรักษา
                     </a>
                 </li>
@@ -250,7 +250,7 @@ $case_count = count($incoming_patients);
                                         </div>
                                         <div class="d-flex justify-content-between align-items-center mt-1">
                                             <span class="badge bg-light text-dark border">HN: <?php echo htmlspecialchars($case['hn']); ?></span>
-                                            <a href="<?= $path_prefix; ?>GP/indexER.php?HN=<?php echo $case['hn']; ?>&rowid=<?php echo $case['row_ID']; ?>"
+                                            <a href="<?= $path_prefix; ?>GP/indexGP.php?HN=<?php echo $case['hn']; ?>&rowid=<?php echo $case['row_ID']; ?>"
                                                 class="btn btn-sm btn-outline-success rounded-pill px-3 py-1" style="font-size:0.75rem;"><i class="fa-solid fa-arrow-right"></i> ไปหน้าจัดการ</a>
                                         </div>
                                         <div class="small text-muted mt-2 text-truncate" style="max-width: 100%;"><i class="fa-solid fa-stethoscope me-1"></i> <?php echo htmlspecialchars($case['located']); ?></div>

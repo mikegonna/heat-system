@@ -349,7 +349,7 @@ $main_result = mysqli_query($conn, $sql);
                     </div>
                     <?php if(!empty($search) || !empty($start_date) || !empty($end_date)): ?>
                     <div class="col-md-auto">
-                        <a href="history_centralER.php" class="btn-clear btn">
+                        <a href="history_centralGP.php" class="btn-clear btn">
                             <i class="fa-solid fa-rotate-left"></i> ล้างค่า
                         </a>
                     </div>

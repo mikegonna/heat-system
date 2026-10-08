@@ -28,7 +28,7 @@ $theme_color = '#327c62'; $theme_bg = '#f4fbf7'; $theme_light = '#e8f6ef'; $head
 if ($is_er) { 
     $theme_color = '#059669'; $theme_bg = '#ecfdf5'; $theme_light = '#d1fae5'; $header_file = 'header_er.php'; $main_link = 'ER/indexER.php'; $title_text = 'ห้องฉุกเฉิน (ER)'; 
 }elseif ($is_gp) { 
-    $theme_color = '#059669'; $theme_bg = '#ecfdf5'; $theme_light = '#d1fae5'; $header_file = 'header_gp.php'; $main_link = 'GP/indexER.php'; $title_text = 'ห้องตรวจโรคทั่วไป'; 
+    $theme_color = '#059669'; $theme_bg = '#ecfdf5'; $theme_light = '#d1fae5'; $header_file = 'header_gp.php'; $main_link = 'GP/indexGP.php'; $title_text = 'ห้องตรวจโรคทั่วไป';
 }elseif ($is_med) { 
     $theme_color = '#0284c7'; $theme_bg = '#f0f9ff'; $theme_light = '#e0f2fe'; $header_file = 'header_followup.php'; $main_link = 'MED/indexMED.php'; $title_text = 'ระบบติดตามอาการ (MED)'; 
 } elseif ($is_pmr) { 
@@ -1342,7 +1342,7 @@ $month_json = htmlspecialchars(json_encode($stats_heat_by_month), ENT_QUOTES, 'U
                                             <td class="fw-bold text-dark"><?php echo htmlspecialchars($w['work_located'] ?? '-'); ?></td>
                                             <td><?php echo htmlspecialchars($w['data_date'] ?? '-'); ?></td>
                                             <td class="text-center">
-                                                <a href="GP/indexER.php?HN=<?php echo $w['hn']; ?>&rowid=<?php echo $w['row_ID']; ?>" class="btn btn-sm btn-outline-theme rounded-pill px-3 shadow-sm fw-bold w-100">ไปหน้าจัดการ</a>
+                                                <a href="GP/indexGP.php?HN=<?php echo $w['hn']; ?>&rowid=<?php echo $w['row_ID']; ?>" class="btn btn-sm btn-outline-theme rounded-pill px-3 shadow-sm fw-bold w-100">ไปหน้าจัดการ</a>
                                             </td>
                                             
                                         <?php else: ?>

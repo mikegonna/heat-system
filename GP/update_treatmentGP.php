@@ -92,18 +92,18 @@ if (isset($_POST['update_treatment'])) {
         // --- SUCCESS ---
         $_SESSION['statusType'] = 'success';
         $_SESSION['statusMsg'] = 'อัปเดตข้อมูลเรียบร้อยแล้ว';
-        header("Location: history_central.php");
+        header("Location: history_centralGP.php");
         exit();
 
     } catch (Exception $e) {
         // --- ERROR ---
         $_SESSION['statusType'] = 'error';
         $_SESSION['statusMsg'] = 'เกิดข้อผิดพลาด: ' . $e->getMessage();
-        header("Location: edit_treatmentER.php?id=" . $_POST['id']);
+        header("Location: edit_treatmentGP.php?id=" . $_POST['id']);
         exit();
     }
 } else {
-    header("Location: history_central.php");
+    header("Location: history_centralGP.php");
     exit();
 }
 ?>

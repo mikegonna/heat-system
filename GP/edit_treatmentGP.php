@@ -14,7 +14,7 @@ if (isset($_GET['id'])) {
               
     $result = mysqli_query($conn, $query);
     if (mysqli_num_rows($result) == 0) {
-        echo "<script>alert('ไม่พบข้อมูล'); window.location='history_central.php';</script>";
+        echo "<script>alert('ไม่พบข้อมูล'); window.location='history_centralGP.php';</script>";
         exit();
     }
     $row = mysqli_fetch_assoc($result);
@@ -50,7 +50,7 @@ if (isset($_GET['id'])) {
     }
 
 } else {
-    header('location: history_central.php');
+    header('location: history_centralGP.php');
     exit();
 }
 ?>
@@ -79,6 +79,7 @@ if (isset($_GET['id'])) {
     if ($user_role == 'icu') require_once '../header_icu.php';
     elseif ($user_role == 'pct') require_once '../header_pct.php';
     elseif ($user_role == 'er') require_once '../header_er.php';
+    elseif ($user_role == 'gp') require_once '../header_gp.php';
     else require_once '../header_ward.php'; 
 ?>
 
@@ -90,7 +91,7 @@ if (isset($_GET['id'])) {
             <div class="card border-0 shadow-sm">
             <?php 
                 // ตรวจสอบสิทธิ์เพื่อกำหนดลิงก์ปุ่มยกเลิก
-                $cancel_link = "history_central.php"; // ค่าเริ่มต้น (สำหรับ ER)
+                $cancel_link = "history_centralGP.php";
                 if (isset($_SESSION['name']) && strtolower($_SESSION['name']) == 'pct') {
                     $cancel_link = "../PCT/dashboardPCT.php"; // ถ้าเป็น PCT ให้กลับไป Dashboard PCT
                 }
@@ -105,7 +106,7 @@ if (isset($_GET['id'])) {
             </div>
                 <div class="card-body p-4">
                     
-                    <form action="update_treatmentER.php" method="post">
+                    <form action="update_treatmentGP.php" method="post">
                         <input type="hidden" name="id" value="<?php echo $row['id']; ?>">
 
                         <div class="section-title">1. ข้อมูลทั่วไป</div>

@@ -71,7 +71,7 @@ if (isset($_GET['autofill'])) {
 </head>
 <body>
 
-<?php $path_prefix = "../"; require_once '../header_er.php';?>
+<?php $path_prefix = "../"; require_once '../header_gp.php';?>
 
 <div class="form-page-wrap">
 
@@ -84,7 +84,7 @@ if (isset($_GET['autofill'])) {
 
     <div class="main-card">
         <div class="card-body">
-            <form action="save_treatmentER.php" method="post" id="erTreatmentForm">
+            <form action="save_treatmentGP.php" method="post" id="erTreatmentForm">
                 <input type="hidden" name="row_id" value="<?php echo $rowid; ?>">
                 <!-- ══════════════════════════════
                      SECTION 1: ค้นหาและระบุตัวตน
