@@ -283,7 +283,7 @@
                         <div class="mb-4">
                             <label class="form-label text-theme fs-6">
                                 สถานะจำหน่าย / ส่งต่อ <span class="text-danger">*</span><br />
-                                <span class="text-success small">(หากมีการย้าย ward กรุณาเลือก "ย้ายไป ward อื่น")</span>
+                                <span class="text-danger small">(หากมีการย้าย ward กรุณาเลือก "ย้ายไป ward อื่น")</span>
                             </label>
                             <select name="treatment_result" id="treatment_result" class="form-select" style="border: 2px solid var(--t-main);" required onchange="toggleTreatmentOptions()">
                                 <option value="" selected>-- กรุณาเลือกสถานะการรักษา --</option>
