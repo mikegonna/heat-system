@@ -482,7 +482,7 @@ $auto_person_type = getVal('person_type', $case_data);
                                     <option value="">-- เลือก Ward ปลายทาง --</option>
                                     <option value="Ward ICU" <?php if($my_ward_val == 'Ward ICU') echo 'selected'; ?>>Ward ICU</option>
                                     <option value="Ward RCU" <?php if($my_ward_val == 'Ward RCU') echo 'selected'; ?>>Ward RCU</option>
-                                    <option value="Ward A4 VIP4" <?php if($my_ward_val == 'Ward A4') echo 'selected'; ?>>Ward A4</option>
+                                    <option value="Ward A4" <?php if($my_ward_val == 'Ward A4') echo 'selected'; ?>>Ward A4</option>
                                     <option value="Ward B3" <?php if($my_ward_val == 'Ward B3') echo 'selected'; ?>>Ward B3</option>
                                 </select>
                                 <!-- ส่งค่าจริงไปยัง Form -->

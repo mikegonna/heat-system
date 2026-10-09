@@ -53,6 +53,32 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['submit_ward_direct']))
             
         } else {
             // 🟢 กรณี 2.2: ไม่มี case_id ส่งมา (เป็นการรับเข้ารักษาตรงแบบ Direct Admit ค้นหาผ่าน API)
+            if ($hn !== '') {
+                $stmtActiveWard = $conn->prepare("SELECT c.id AS case_id, c.patient_name, w.admit_type, w.admit_date
+                                                  FROM cases c
+                                                  INNER JOIN ward_details w ON w.case_id = c.id
+                                                  WHERE TRIM(c.hn) = ? AND w.status = 'Active'
+                                                  ORDER BY w.admit_date DESC, w.id DESC");
+                $stmtActiveWard->bind_param("s", $hn);
+                $stmtActiveWard->execute();
+                $activeWardRecords = $stmtActiveWard->get_result();
+                $activeWardDetails = [];
+                while ($activeWard = $activeWardRecords->fetch_assoc()) {
+                    $admitDate = !empty($activeWard['admit_date'])
+                        ? date('d/m/Y H:i', strtotime($activeWard['admit_date']))
+                        : '-';
+                    $activeWardDetails[] = $activeWard['admit_type'] . ' (รับเมื่อวันที่ ' . $admitDate . ')';
+                }
+                $stmtActiveWard->close();
+
+                if ($activeWardDetails) {
+                    throw new RuntimeException(
+                        "พบ HN นี้มีรายการ Ward ที่ยังรักษาอยู่: " . implode(', ', $activeWardDetails)
+                        . " กรุณาตรวจสอบว่าเป็นการรักษาครั้งเดิมก่อนบันทึกหรือไม่ "
+                    );
+                }
+            }
+
             $status_case = 'Open';
             $stmtIns = $conn->prepare("INSERT INTO cases (hn, patient_id_card, patient_name, phone, age, weight, height, bmi, person_type, department, congenital_disease, status_case) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)");
             $stmtIns->bind_param("ssssidddssss", $hn, $patient_id_card, $patient_name, $phone, $age, $weight, $height, $bmi, $person_type, $department, $congenital_disease, $status_case);

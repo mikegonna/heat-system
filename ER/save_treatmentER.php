@@ -73,9 +73,9 @@ if (isset($_POST['submit_treatment'])) {
         if ($target_case_id > 0) {
             // [กรณี Ward สร้างไปก่อนแล้ว] ให้อัปเดตข้อมูลทั่วไปแทน เพื่อให้แฟ้มประวัติแม่นยำที่สุด
             $case_id = $target_case_id;
-            $update_case = "UPDATE cases SET patient_id_card=?, patient_name=?, phone=?, age=?, weight=?, height=?, bmi=?, person_type=?, department=?, congenital_disease=? WHERE id=?";
+            $update_case = "UPDATE cases SET patient_id_card=?, patient_name=?, phone=?, age=?, weight=?, height=?, bmi=?, person_type=?, department=?, congenital_disease=?, whoname=COALESCE(NULLIF(?, ''), whoname), whotel=COALESCE(NULLIF(?, ''), whotel) WHERE id=?";
             $stmt_case = $conn->prepare($update_case);
-            $stmt_case->bind_param("sssidddsssi", $patient_id_card, $patient_name, $phone, $age, $weight, $height, $bmi, $person_type, $department, $congenital_disease, $case_id);
+            $stmt_case->bind_param("sssidddsssssi", $patient_id_card, $patient_name, $phone, $age, $weight, $height, $bmi, $person_type, $department, $congenital_disease, $whoname, $whotel, $case_id);
             if (!$stmt_case->execute()) { throw new Exception("Error updating case: " . $stmt_case->error); }
             $stmt_case->close();
         } else {
