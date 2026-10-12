@@ -1801,7 +1801,19 @@ if ($is_viewer) {
                                 </td>
                                 <td class="px-3 py-3 small text-muted"><?= htmlspecialchars((string)($row['person_type'] ?? '-'), ENT_QUOTES, 'UTF-8') ?></td>
                                 <td class="px-3 py-3"><div class="dx-text"><?= htmlspecialchars((string)($row['FstDx'] ?? '-'), ENT_QUOTES, 'UTF-8') ?></div></td>
-                                <td class="px-3 py-3"><?= htmlspecialchars((string)($row['admit_type'] ?? '-'), ENT_QUOTES, 'UTF-8') ?></td>
+                                <td class="px-3 py-3">
+                                    <?php
+                                        if ($row['admit_type'] == 'Ward A4') {
+                                            echo "<span class='st-badge st-a4' style='background-color: #abf89c; color: #000;'><i class='fa-solid fa-bed'></i> Ward A4</span>";
+                                        } elseif ($row['admit_type'] == 'Ward B3') {
+                                            echo "<span class='st-badge st-b3' style='background-color: #ffde7c; color: #000;'><i class='fa-solid fa-bed'></i> Ward B3</span>";
+                                        } elseif ($row['admit_type'] == 'Ward ICU') {
+                                            echo "<span class='st-badge st-icu' style='background-color: #dc7235; color: #fff;'><i class='fa-solid fa-bed-pulse'></i> Ward ICU</span>";
+                                        }else {
+                                            echo "ไม่พบข้อมูล";
+                                        }
+                                    ?>
+                                </td>
                                 <td class="px-3 py-3 small text-muted" style="white-space:nowrap;">
                                     <?= $er_arrival ? date('d/m/Y', strtotime($er_arrival)) : '-' ?><br>
                                     <?php if ($er_arrival): ?><span><?= date('H:i', strtotime($er_arrival)) ?> น.</span><?php endif; ?>
