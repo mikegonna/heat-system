@@ -193,11 +193,20 @@ $er_arrival_date_filter_sql = empty($er_arrival_date_conditions)
     : ' AND ' . implode(' AND ', $er_arrival_date_conditions);
 
 $ptypes_labels = ['ทหารกองประจำการ', 'กำลังพล ทบ.', 'นอก ทบ.', 'อื่นๆ'];
-$year = date('Y') + 543;
 $months = ['ม.ค.', 'ก.พ.', 'มี.ค.', 'เม.ย.', 'พ.ค.', 'มิ.ย.', 'ก.ค.', 'ส.ค.', 'ก.ย.', 'ต.ค.', 'พ.ย.', 'ธ.ค.'];
-$months_labels = array_map(function($m) use ($year) {
-    return $m . ' ' . $year;
-}, $months);
+$fiscal_reference_date = $filter_start_date !== ''
+    ? $filter_start_date
+    : ($filter_end_date !== '' ? $filter_end_date : date('Y-m-d'));
+$fiscal_start_year = (int)substr($fiscal_reference_date, 0, 4);
+if ((int)substr($fiscal_reference_date, 5, 2) < 10) {
+    $fiscal_start_year--;
+}
+$fiscal_month_numbers = array_merge(range(10, 12), range(1, 9));
+$months_labels = [];
+foreach ($fiscal_month_numbers as $month_number) {
+    $month_year = $fiscal_start_year + ($month_number < 10 ? 1 : 0);
+    $months_labels[] = $months[$month_number - 1] . ' ' . ($month_year + 543);
+}
 
 $heat_keywords_full = ["Heat Stroke", "Heat Exhaustion", "Rhabdomyolysis (CPK > 1,000)", "Rhabdomyolysis (CPK < 1,000)", "Heat Tetany", "Heat Cramps", "Heat Syncope", "Heat Edema", "Prickly Heat", "อื่นๆ"];
 
@@ -2350,7 +2359,7 @@ if ($is_viewer) {
         const heatKeywords = ["Heat Stroke", "Heat Exhaustion", "Rhabdomyolysis (CPK > 1,000)", "Rhabdomyolysis (CPK < 1,000)", "Heat Tetany", "Heat Cramps", "Heat Syncope", "Heat Edema", "Prickly Heat", "อื่นๆ"];
         
         let totalByMonth = [];
-        for (let m = 1; m <= 12; m++) {
+        for (const m of <?= json_encode($fiscal_month_numbers) ?>) {
             let sum = 0;
             heatKeywords.forEach(dx => {
                 sum += (rawData[dx]?.[m] || 0);
