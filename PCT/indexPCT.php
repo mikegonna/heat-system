@@ -51,6 +51,17 @@ $check_col = $conn->query("SHOW COLUMNS FROM cases LIKE 'status_case'");
 if ($check_col && $check_col->num_rows == 0) {
     $conn->query("ALTER TABLE cases ADD status_case VARCHAR(50) DEFAULT 'Open' AFTER created_at");
 }
+$check_comment_col = $conn->query("SHOW COLUMNS FROM cases LIKE 'comment'");
+if (!$check_comment_col) {
+    error_log('Failed to check cases.comment column: ' . $conn->error);
+    http_response_code(500);
+    exit('ไม่สามารถตรวจสอบโครงสร้างฐานข้อมูลได้');
+}
+if ($check_comment_col->num_rows === 0 && !$conn->query("ALTER TABLE cases ADD `comment` TEXT NULL")) {
+    error_log('Failed to add cases.comment column: ' . $conn->error);
+    http_response_code(500);
+    exit('ไม่สามารถเตรียมช่องบันทึกของเคสได้');
+}
 
 // ==============================================================================
 // 🛠️ Action Handlers (แก้ไขตึก/ปิดเคส/ปลดล็อก) - ป้องกัน Viewer ส่ง POST
@@ -133,6 +144,7 @@ if (!function_exists('getOutcomeState')) {
 // ==============================================================================
 $sql_list = "SELECT 
                 p.id as case_id, p.hn, p.patient_name, p.department, p.person_type, p.created_at, p.status_case,
+                p.`comment` as case_comment,
                 (SELECT FstDx FROM gp_details WHERE case_id = p.id ORDER BY id DESC LIMIT 1) as gp_dx,
                 (SELECT disposition FROM gp_details WHERE case_id = p.id ORDER BY id DESC LIMIT 1) as gp_disposition,
                 (SELECT FstDx FROM er_details WHERE case_id = p.id ORDER BY id DESC LIMIT 1) as er_dx,
@@ -821,6 +833,7 @@ if (!function_exists('renderPatientTable')) {
                 $is_active_ward = false;
                 $ward_id_to_fix = $row['last_ward_id'];
                 $case_id = $row['case_id'];
+                $has_comment = trim((string)($row['case_comment'] ?? '')) !== '';
 
                 $dx_final = $row['best_dx_calculated'] ?? '-'; 
                 $sev_text = 'Mild';
@@ -1007,6 +1020,7 @@ if (!function_exists('renderPatientTable')) {
                     <td>{$status_html}{$journey_html}</td>
                     <td class='text-center align-middle'>
                         <div class='d-flex flex-column gap-2 align-items-center btn-actions-wrapper'>
+                            <button type='button' class='btn-action btn-info js-case-comment " . ($has_comment ? 'has-comment' : '') . "' data-case-id='" . pct_escape_html($case_id) . "' data-patient-name='{$safe_patient_name}' data-has-comment='" . ($has_comment ? '1' : '0') . "'><i class='fa-solid fa-sticky-note'></i> " . ($has_comment ? 'ดูบันทึก' : 'เพิ่ม Note') . "</button>
                             <a href='../view_patient_full_history.php?hn=".urlencode($row['hn'])."' class='btn-action btn-view shadow-sm w-100 justify-content-center'><i class='fa-solid fa-folder-open'></i> เปิดแฟ้ม</a>";
 
                 // แสดงปุ่มจัดการเฉพาะถ้าไม่ใช่ Viewer
@@ -1120,6 +1134,7 @@ if (!function_exists('renderDeptTab')) {
     <title><?php echo $is_viewer ? 'Viewer Dashboard' : 'PCT Dashboard'; ?></title>
     
     <link href="../bootstrap-5.0.2-dist/css/bootstrap.min.css" rel="stylesheet">
+    <?php if ($is_viewer): ?><script src="../bootstrap-5.0.2-dist/js/bootstrap.bundle.min.js"></script><?php endif; ?>
     <link href="https://fonts.googleapis.com/css2?family=Sarabun:wght@300;400;500;600&family=Prompt:wght@400;500;600;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     
@@ -1214,6 +1229,13 @@ if (!function_exists('renderDeptTab')) {
         .btn-view { background: var(--pct-primary-soft); color: var(--pct-text); border: 1px solid var(--border);}
         .btn-view:hover { background: var(--pct-primary); color: #fff; border-color: var(--pct-primary);}
         .btn-fix { background: #fffbeb; color: #d97706; border: 1px solid #fde68a; }
+        .btn-info { background: #ecfdfc; color: #046694; border: 1px solid #a7f3d0; }
+        .btn-info.has-comment { background: #eff6ff; color: #1d4ed8; border-color: #bfdbfe; }
+        .case-comment-modal .modal-content { border: 0; border-radius: 22px; overflow: hidden; box-shadow: 0 24px 70px rgba(15, 23, 42, .2); }
+        .case-comment-modal .modal-header { padding: 22px 26px; color: #fff; background: linear-gradient(135deg, #0f766e, #0e7490); border: 0; }
+        .case-comment-modal .modal-body { padding: 24px 26px; }
+        .case-comment-modal .comment-field { min-height: 220px; resize: vertical; border: 1px solid #cbd5e1; border-radius: 14px; padding: 14px 16px; line-height: 1.7; }
+        .case-comment-modal .comment-field:focus { border-color: #0e7490; box-shadow: 0 0 0 .2rem rgba(14, 116, 144, .14); }
         .btn-close-case { background: #fef2f2; color: #e11d48; border: 1px solid #fecaca; }
         .btn-reopen { background: #ffffff; color: var(--pct-text); border: 1px solid var(--border); }
         
@@ -1447,7 +1469,7 @@ if ($is_viewer) {
                     <div class="kpi-card" onclick="openCtControlledModal()" style="cursor:pointer;" title="คลิกดูรายชื่อเคสที่ควบคุมอุณหภูมิได้">
                         <div class="icon-circle" style="width:65px; height:65px; font-size:2rem; background:#eef2ff; color:#6366f1;"><i class="fa-solid fa-thermometer-half"></i></div>
                         <div><h6 class="text-muted fw-bold mb-1 font-prompt" style="font-size:0.95rem;">
-                                CT ที่ควบคุมได้ (สะสม) <i class="fa-solid fa-arrow-up-right-from-square ms-1" style="font-size:0.75rem; color:#6366f1;"></i>
+                                CT (ER) ที่ควบคุมได้ (สะสม) <i class="fa-solid fa-arrow-up-right-from-square ms-1" style="font-size:0.75rem; color:#6366f1;"></i>
                             </h6><h2 class="m-0 font-prompt fw-bold text-dark counter-val"><?php echo number_format($kpi_ct_controlled); ?></h2></div>
                     </div>
                 </div>
@@ -1853,7 +1875,7 @@ if ($is_viewer) {
         <div class="modal-content border-0 shadow-lg" style="border-radius: 24px;">
             <div class="modal-header" style="background:#ecfeff; border-bottom:1px solid #a5f3fc; border-radius:24px 24px 0 0; padding:20px 25px;">
                 <h5 class="modal-title fw-bold font-head" id="ctControlledModalTitle" style="color:#0e7490;">
-                    <i class="fa-solid fa-temperature-half me-2"></i> รายชื่อเคส CT ที่ควบคุมได้ (สะสม)
+                    <i class="fa-solid fa-temperature-half me-2"></i> รายชื่อเคส CT (ER) ที่ควบคุมได้ (สะสม)
                     <span class="badge ms-2" style="background:#0891b2; color:#fff;"><?= number_format($kpi_ct_controlled) ?> รายการ</span>
                 </h5>
                 <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="ปิด"></button>
@@ -2656,6 +2678,134 @@ if ($is_viewer) {
     <input type="hidden" name="delete_reason" id="deleteErReasonHidden">
 </form>
 
+<div class="modal fade case-comment-modal" id="caseCommentModal" tabindex="-1" aria-labelledby="caseCommentModalTitle" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered modal-dialog-scrollable">
+        <div class="modal-content">
+            <div class="modal-header">
+                <div>
+                    <div class="small opacity-75 mb-1"><i class="fa-solid fa-notes-medical me-1"></i> บันทึกประจำเคส</div>
+                    <h5 class="modal-title fw-bold mb-0" id="caseCommentModalTitle">Note</h5>
+                </div>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="ปิด"></button>
+            </div>
+            <div class="modal-body">
+                <div class="rounded-3 bg-light border p-3 mb-3">
+                    <div class="text-muted small">ผู้ป่วย</div>
+                    <div class="fw-bold text-dark" id="caseCommentPatient">-</div>
+                </div>
+                <label for="caseCommentText" class="form-label fw-bold text-dark">รายละเอียดบันทึก</label>
+                <textarea class="form-control comment-field" id="caseCommentText" placeholder="พิมพ์บันทึกเพิ่มเติมสำหรับเคสนี้..." disabled></textarea>
+                <div class="small text-muted mt-2" id="caseCommentHint"><?= $is_viewer ? 'โหมด Viewer สามารถดูบันทึกได้เท่านั้น' : 'บันทึกนี้จะแสดงให้ผู้มีสิทธิ์ดูข้อมูลเคสเห็น' ?></div>
+                <div class="alert alert-danger mt-3 mb-0 d-none" id="caseCommentError" role="alert"></div>
+            </div>
+            <div class="modal-footer border-0 bg-light px-4 py-3">
+                <button type="button" class="btn btn-light border rounded-pill px-4" data-bs-dismiss="modal">ปิด</button>
+                <?php if (!$is_viewer): ?>
+                    <button type="button" class="btn btn-primary rounded-pill px-4" id="saveCaseComment" disabled>
+                        <i class="fa-solid fa-floppy-disk me-1"></i> บันทึก Note
+                    </button>
+                <?php endif; ?>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+    (() => {
+        const modalElement = document.getElementById('caseCommentModal');
+        const commentModal = bootstrap.Modal.getOrCreateInstance(modalElement);
+        const commentField = document.getElementById('caseCommentText');
+        const patientField = document.getElementById('caseCommentPatient');
+        const title = document.getElementById('caseCommentModalTitle');
+        const errorElement = document.getElementById('caseCommentError');
+        const saveButton = document.getElementById('saveCaseComment');
+        const csrfToken = <?= json_encode($csrf_token) ?>;
+        let activeCaseId = null;
+
+        function showCommentError(message) {
+            errorElement.textContent = message;
+            errorElement.classList.remove('d-none');
+        }
+
+        async function readResponse(response) {
+            const result = await response.json();
+            if (!response.ok || !result.success) {
+                throw new Error(result.message || 'เกิดข้อผิดพลาด กรุณาลองใหม่');
+            }
+            return result;
+        }
+
+        document.addEventListener('click', async (event) => {
+            const button = event.target.closest('.js-case-comment');
+            if (!button) return;
+
+            activeCaseId = button.dataset.caseId;
+            patientField.textContent = button.dataset.patientName || '-';
+            title.textContent = saveButton
+                ? (button.dataset.hasComment === '1' ? 'ดู / แก้ไข Note' : 'เพิ่ม Note')
+                : 'ดู Note';
+            commentField.value = '';
+            commentField.disabled = true;
+            errorElement.classList.add('d-none');
+            if (saveButton) saveButton.disabled = true;
+            commentModal.show();
+            const requestedCaseId = activeCaseId;
+
+            try {
+                const response = await fetch('case_comment.php?case_id=' + encodeURIComponent(requestedCaseId), {
+                    headers: { 'Accept': 'application/json' },
+                    credentials: 'same-origin'
+                });
+                const result = await readResponse(response);
+                if (activeCaseId !== requestedCaseId) return;
+                commentField.value = result.comment;
+                commentField.disabled = <?= $is_viewer ? 'true' : 'false' ?>;
+                if (saveButton) saveButton.disabled = false;
+            } catch (error) {
+                if (activeCaseId === requestedCaseId) showCommentError(error.message);
+            }
+        });
+
+        if (saveButton) {
+            saveButton.addEventListener('click', async () => {
+                if (!activeCaseId) return;
+                const savedCaseId = activeCaseId;
+                const savedComment = commentField.value;
+                saveButton.disabled = true;
+                errorElement.classList.add('d-none');
+
+                const payload = new FormData();
+                payload.append('case_id', savedCaseId);
+                payload.append('comment', savedComment);
+                payload.append('csrf_token', csrfToken);
+
+                try {
+                    const response = await fetch('case_comment.php', {
+                        method: 'POST',
+                        body: payload,
+                        headers: { 'Accept': 'application/json' },
+                        credentials: 'same-origin'
+                    });
+                    await readResponse(response);
+                    document.querySelectorAll('.js-case-comment').forEach((button) => {
+                        if (button.dataset.caseId !== savedCaseId) return;
+                        button.dataset.hasComment = savedComment.trim() ? '1' : '0';
+                        button.classList.toggle('has-comment', Boolean(savedComment.trim()));
+                        button.innerHTML = '<i class="fa-solid fa-sticky-note"></i> ' + (savedComment.trim() ? 'ดูบันทึก' : 'เพิ่ม Note');
+                    });
+                    if (activeCaseId === savedCaseId) {
+                        commentModal.hide();
+                        Swal.fire({ icon: 'success', title: 'บันทึก Note เรียบร้อยแล้ว', timer: 1600, showConfirmButton: false });
+                    }
+                } catch (error) {
+                    if (activeCaseId === savedCaseId) showCommentError(error.message);
+                } finally {
+                    saveButton.disabled = false;
+                }
+            });
+        }
+    })();
+</script>
 
 </body>
 </html>
