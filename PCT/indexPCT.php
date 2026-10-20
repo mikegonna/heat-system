@@ -281,10 +281,15 @@ foreach($all_cases as $row) {
                 $med_stat = $row['last_med_status'] ?? '';
                 $pmr_stat = $row['last_pmr_status'] ?? '';
                 $pcu_count = (int)($row['pcu_count'] ?? 0);
-                
-                if (empty($med_stat)) $assigned_depts[] = 'MED';
-                if (!empty($med_stat) && strpos($med_stat, 'นัดพบแพทย์เวชศาสตร์ฟื้นฟู') !== false) {
-                    if (empty($pmr_stat) || strpos($pmr_stat, 'สิ้นสุด') === false) $assigned_depts[] = 'PMR';
+
+                if (getSeverityCategory($row['final_diagnosis'] ?? '') === 'Severe') {
+                    $assigned_depts[] = 'MED';
+                    $assigned_depts[] = 'PMR';
+                } else {
+                    if (empty($med_stat)) $assigned_depts[] = 'MED';
+                    if (!empty($med_stat) && strpos($med_stat, 'นัดพบแพทย์เวชศาสตร์ฟื้นฟู') !== false) {
+                        if (empty($pmr_stat) || strpos($pmr_stat, 'สิ้นสุด') === false) $assigned_depts[] = 'PMR';
+                    }
                 }
                         $best_dx_for_pcu = !empty($row['final_diagnosis'])
                         ? $row['final_diagnosis']
