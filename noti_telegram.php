@@ -361,6 +361,7 @@ if (isset($_POST["count"])) {
 
 
 
+/* ปิดการส่ง Telegram ชั่วคราว
 // ตั้งค่า Bot Token และ Chat ID
 $botToken = "7403074195:AAFXlSN8JljXJ2Vjvjs7OlylDkzkSs9a_ys"; // ใส่ Telegram bot token ของคุณ
 $chatId = "-4745966683"; // ใส่ chat ID ของคุณ
@@ -409,6 +410,8 @@ if(curl_error($ch)){
 }
 }
 curl_close($ch);
+*/
+echo 'การแจ้งเตือน Telegram ถูกปิดใช้งานชั่วคราว';
 }
 ?>
 

@@ -156,6 +156,7 @@ if (isset($_POST['submit_treatment'])) {
 }
 
 
+/* ปิดการส่ง Telegram ชั่วคราว
 // ====== Telegram Config ======
 $botToken = "7403074195:AAFXlSN8JljXJ2Vjvjs7OlylDkzkSs9a_ys"; // ใส่ Telegram bot token ของคุณ
 $chatId = "-4745966683"; // ใส่ chat ID ของคุณ
@@ -236,6 +237,7 @@ if(curl_error($ch)){
 }
 }
 curl_close($ch);
+*/
 
 
 ?>
