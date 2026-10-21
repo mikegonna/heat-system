@@ -2,9 +2,6 @@
 session_start();
 require_once '../database/db_conn.php';
 
-// เปิดการแจ้งเตือน Error ของ MySQLi ให้โยนเป็น Exception (ช่วยให้ Try/Catch ทำงานได้)
-mysqli_report(MYSQLI_REPORT_ERROR | MYSQLI_REPORT_STRICT);
-
 // ตรวจสอบการล็อกอิน
 if (!isset($_SESSION['user_id'])) { 
     header("Location: ../login.php"); 
@@ -91,7 +88,22 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['submit_ward_direct']))
         // 3. รับค่าและเตรียมข้อมูลตาราง ward_details
         // =========================================================
         $an = trim($_POST['an'] ?? '');
-        $admit_date = !empty($_POST['admit_date']) ? str_replace('T', ' ', $_POST['admit_date']) : date('Y-m-d H:i:s');
+        $admit_date_input = trim($_POST['admit_date'] ?? '');
+        if ($admit_date_input === '') {
+            throw new RuntimeException('กรุณาระบุวันและเวลารับเข้า');
+        }
+
+        $admit_date_format = strlen($admit_date_input) === 19 ? 'Y-m-d\TH:i:s' : 'Y-m-d\TH:i';
+        $admit_date_object = DateTimeImmutable::createFromFormat($admit_date_format, $admit_date_input);
+        $admit_date_errors = DateTimeImmutable::getLastErrors();
+        if (
+            !$admit_date_object
+            || ($admit_date_errors !== false && ($admit_date_errors['warning_count'] > 0 || $admit_date_errors['error_count'] > 0))
+            || $admit_date_object->format($admit_date_format) !== $admit_date_input
+        ) {
+            throw new RuntimeException('วันและเวลารับเข้าไม่ถูกต้อง กรุณาตรวจสอบอีกครั้ง');
+        }
+        $admit_date = $admit_date_object->format('Y-m-d H:i:s');
         $treatment_result = $_POST['treatment_result'] ?? 'Admit';
         $admit_type = !empty($_POST['admit_type']) ? $_POST['admit_type'] : $_SESSION['name'];
         $doctor_name = trim($_POST['doctor_name'] ?? '');

@@ -14,6 +14,12 @@
     }
     if (!$conn) { die("<div class='alert alert-danger text-center m-5'><h3>Error: Database Connection Failed</h3><p>ไม่พบไฟล์ db_conn.php</p></div>"); }
 
+    require_once __DIR__ . '/MED/med_followup_helpers.php';
+    if (!ensureMedFollowupColumns($conn)) {
+        http_response_code(500);
+        exit('ไม่สามารถเตรียมข้อมูลผลตรวจ MED ได้ กรุณาตรวจสอบบันทึกข้อผิดพลาดของระบบ');
+    }
+
     if (!isset($_GET['hn']) || empty($_GET['hn'])) {
         die("<div class='alert alert-danger text-center mt-5'>ไม่พบรหัส HN</div>");
     }
@@ -40,8 +46,8 @@
     $diag_list = ["Heat Stroke", "Heat Exhaustion", "Rhabdomyolysis (CPK > 1,000)", "Rhabdomyolysis (CPK < 1,000)", "Heat Tetany", "Heat Cramps", "Heat Syncope", "Heat Edema", "Prickly Heat", "อื่นๆ"];
     $cause_list = ["ฝึกทางการทหาร", "ออกกำลังกายกลางวันในที่แจ้ง", "ทำงานกลางแจ้ง"];
     $risk_list = ["ไม่มีปัจจัยเสี่ยง", "พักผ่อนไม่เพียงพอ", "มีประวัติใช้ยาเสพติด (ก่อนฝึก)", "มีประวัติใช้ยาเสพติด (ระหว่างฝึก)", "ดื่มแอลกอฮอล์", "BMI > 28", "BMI > 30 หรือ นน. > 100 กก.", "มีไข้ 36.8-37.2 °C", "มีไข้ > 37.2 °C", "ท้องเสีย/เป็นหวัด (ช่วงฝึก)", "มีโรคประจำตัวเสี่ยงต่อโรคร้อน", "ทานยาที่ลดการระบายความร้อน", "บาดเจ็บ/ถูกทำร้ายร่างกาย", "บริจาคโลหิตภายใน 3 วัน", "นน.ลด 2-5 กก. ใน 1 สัปดาห์", "นน.ลด > 5 กก. ใน 1 สัปดาห์", "ประวัติฮีทสโตรก (เคยนอน รพ.)", "เจ็บป่วยฝึกไม่ได้ (มีใบรับรองแพทย์)"];
-    $med_status_list = ["มาตามนัด อาการปกติ สิ้นสุดการติดตาม", "มาตามนัด นัดพบแพทย์เวชศาสตร์ฟื้นฟู", "มาไม่ตรงตามนัด อาการปกติ สิ้นสุดการติดตาม", "มาไม่ตรงตามนัด นัดพบแพทย์เวชศาสตร์ฟื้นฟู", "ไม่มาตามนัด"];
-    $pmr_status_list = ["มาตามนัด อาการปกติ สิ้นสุดการฟื้นฟู", "มาตามนัด นัดฟื้นฟูต่อเนื่อง", "มาไม่ตรงตามนัด อาการปกติ สิ้นสุดการฟื้นฟู", "มาไม่ตรงตามนัด นัดฟื้นฟูต่อเนื่อง", "ไม่มาตามนัด"];
+    $med_status_list = ["มาตรงนัด", "มาไม่ตรงนัด"];
+    $pmr_status_list = ["มาตรงนัด", "มาไม่ตรงนัด"];
     $pcu_sym_list = ['ปวดศีรษะ', 'มึนงง', 'หน้ามืด', 'ปวดเมื่อยกล้ามเนื้อ', 'อ่อนเพลีย', 'จุกแน่นหน้าอก', 'คลื่นไส้', 'อาเจียน', 'ทานไม่ได้', 'ชัก'];
 
     // ==========================================
@@ -260,11 +266,15 @@
     } elseif ($edit_type === 'MED' && $can_edit_med) {
         $med_status = mysqli_real_escape_string($conn, $_POST['med_status']);
         $med_note = mysqli_real_escape_string($conn, $_POST['med_note']);
+        $cpk = mysqli_real_escape_string($conn, $_POST['cpk'] ?? '');
+        $bun = mysqli_real_escape_string($conn, $_POST['bun'] ?? '');
+        $cr = mysqli_real_escape_string($conn, $_POST['cr'] ?? '');
+        $eletroride = mysqli_real_escape_string($conn, $_POST['eletroride'] ?? '');
         $next_med_date = (strpos($med_status, 'สิ้นสุด') !== false || empty($_POST['next_med_date'])) ? 'NULL' : "'" . mysqli_real_escape_string($conn, $_POST['next_med_date']) . "'";
         $record_datetime = mysqli_real_escape_string($conn, str_replace('T', ' ', $_POST['record_datetime']));
         $recorder_name = mysqli_real_escape_string($conn, $_POST['recorder_name']);
 
-        $sqlUp = "UPDATE med_records SET med_status='$med_status', med_note='$med_note', next_med_date=$next_med_date, record_datetime='$record_datetime', recorder_name='$recorder_name' WHERE id=$record_id";
+        $sqlUp = "UPDATE med_records SET med_status='$med_status', med_note='$med_note', cpk='$cpk', bun='$bun', cr='$cr', eletroride='$eletroride', next_med_date=$next_med_date, record_datetime='$record_datetime', recorder_name='$recorder_name' WHERE id=$record_id";
         mysqli_query($conn, $sqlUp);
 
     } elseif ($edit_type === 'PMR' && $can_edit_pmr) {
@@ -1014,6 +1024,20 @@ endif;
                                         <div class="fm-col-half"><div class="fm-label">ผลการประเมิน</div><div class="fm-value text-primary fw-bold"><?php echo htmlspecialchars((string)($r[strtolower($baseType).'_status'] ?? '-')); ?></div></div>
                                         <div class="fm-col-half"><div class="fm-label text-danger">วันนัดครั้งต่อไป</div><div class="fm-value text-danger fw-bold"><i class="fa-regular fa-calendar-plus me-1"></i><?php echo !empty($r['next_'.$baseType.'_date']) ? date('d/m/Y', strtotime($r['next_'.$baseType.'_date'])) : '-'; ?></div></div>
                                     </div>
+                                    <?php if ($baseType === 'MED'): ?>
+                                        <div class="fm-row">
+                                            <?php
+                                                $med_lab_fields = ['CPK' => 'cpk', 'BUN' => 'bun', 'Cr' => 'cr', 'Electrolyte' => 'eletroride'];
+                                                foreach ($med_lab_fields as $lab_label => $lab_field):
+                                                    $lab_value = $r[$lab_field] ?? '';
+                                            ?>
+                                                <div class="fm-col-half">
+                                                    <div class="fm-label"><?php echo $lab_label; ?></div>
+                                                    <div class="fm-value"><?php echo $lab_value !== '' ? htmlspecialchars((string)$lab_value, ENT_QUOTES, 'UTF-8') : '-'; ?></div>
+                                                </div>
+                                            <?php endforeach; ?>
+                                        </div>
+                                    <?php endif; ?>
                                     <div class="fm-block">
                                         <div class="fm-block-label">บันทึกเพิ่มเติม:</div>
                                         <div class="fm-value p-0"><?php echo nl2br(htmlspecialchars((string)($r[strtolower($baseType).'_note'] ?? '-'))); ?></div>
@@ -1628,9 +1652,27 @@ endif;
                             <label class="form-label small fw-bold">บันทึกเพิ่มเติม</label>
                             <textarea class="form-control" name="med_note" id="edit_followup_note" rows="3"></textarea>
                         </div>
-                        <div class="mb-2" id="followup_next_wrapper">
+                        <div class="mb-2" id="followup_next_wrapper" style="display:none;">
                             <label class="form-label small fw-bold text-danger">วันที่นัดครั้งต่อไป</label>
                             <input type="date" class="form-control" name="next_med_date" id="edit_followup_next">
+                        </div>
+                        <div class="row g-2 d-none" id="edit_followup_med_labs">
+                            <div class="col-6">
+                                <label class="form-label small fw-bold">CPK</label>
+                                <input type="text" class="form-control" name="cpk" id="edit_followup_cpk">
+                            </div>
+                            <div class="col-6">
+                                <label class="form-label small fw-bold">BUN</label>
+                                <input type="text" class="form-control" name="bun" id="edit_followup_bun">
+                            </div>
+                            <div class="col-6">
+                                <label class="form-label small fw-bold">Cr</label>
+                                <input type="text" class="form-control" name="cr" id="edit_followup_cr">
+                            </div>
+                            <div class="col-6">
+                                <label class="form-label small fw-bold">Electrolyte</label>
+                                <input type="text" class="form-control" name="eletroride" id="edit_followup_eletroride">
+                            </div>
                         </div>
                     </div>
                     
@@ -1953,6 +1995,14 @@ endif;
                 
                 document.getElementById('edit_followup_next').name = 'next_' + lowerT + '_date';
                 document.getElementById('edit_followup_next').value = data['next_' + lowerT + '_date'] || '';
+
+                const medLabFields = document.getElementById('edit_followup_med_labs');
+                medLabFields.classList.toggle('d-none', type !== 'MED');
+                ['cpk', 'bun', 'cr', 'eletroride'].forEach(field => {
+                    const input = document.getElementById('edit_followup_' + field);
+                    input.disabled = type !== 'MED';
+                    input.value = type === 'MED' ? (data[field] || '') : '';
+                });
                 
                 document.getElementById('edit_followup_recorder').value = data.recorder_name || '';
                 document.getElementById('edit_followup_datetime').value = fmtDate(data.record_datetime);

@@ -1,8 +1,5 @@
 <?php 
 // 1. Config & Session
-error_reporting(E_ALL);
-ini_set('display_errors', 1);
-
 session_start();
 if (!isset($_SESSION['user_id'])) { header("Location: ../login.php"); exit(); }
 require_once '../database/db_conn.php'; 
@@ -477,11 +474,41 @@ function getPatientTimeline($conn, $case_id) {
 
                                 // สร้างกล่องข้อมูล MED
                                 $med_status = !empty($med_data['med_status']) ? $med_data['med_status'] : '-';
-                                $med_note = !empty($med_data['med_note']) ? $med_data['med_note'] : '-';
                                 
-                                $med_info_html = "<div class='fw-bold mb-1' style='color: var(--theme-dark); font-size: 0.95rem;'><i class='fa-solid fa-clipboard-list me-1'></i> " . htmlspecialchars($med_status) . "</div>";
-                                if ($med_note !== '-') {
-                                    $med_info_html .= "<div class='small text-muted'><i class='fa-solid fa-pen text-secondary me-1'></i> " . htmlspecialchars(mb_strimwidth($med_note, 0, 45, '...')) . "</div>";
+                                // แปลงค่าว่างเป็น -
+                                $val = fn($key) => htmlspecialchars(
+                                    !empty($med_data[$key]) ? $med_data[$key] : '-'
+                                );
+
+                                $med_info_html = "
+                                    <div class='fw-bold mb-1' style='color: var(--theme-dark); font-size: 0.95rem;'>
+                                        <i class='fa-solid fa-clipboard-list me-1'></i>
+                                        {$val('med_status')}
+                                    </div>";
+
+                                if (!empty($med_data['med_note'])) {
+                                    $labs = [
+                                        'CPK'         => 'cpk',
+                                        'BUN'         => 'bun',
+                                        'Cr'          => 'cr',
+                                        'Electrolyte' => 'eletroride'
+                                    ];
+
+                                    $lab_text = implode(', ', array_map(
+                                        fn($label, $key) => "$label: {$val($key)}",
+                                        array_keys($labs),
+                                        array_values($labs)
+                                    ));
+
+                                    $med_info_html .= "
+                                        <div class='small text-muted'>
+                                            <i class='fa-solid fa-pen text-secondary me-1'></i>
+                                            " . htmlspecialchars(mb_strimwidth($med_data['med_note'], 0, 45, '...')) . "
+                                            <span class='text-muted small' style='font-size: 0.75rem; display: block; margin-top: 2px;'>
+                                                <i class='fa-solid fa-flask-vial me-1'></i>
+                                                $lab_text
+                                            </span>
+                                        </div>";
                                 }
 
                                 // 💡 3. หาวินิจฉัยสุดท้าย

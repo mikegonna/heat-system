@@ -372,8 +372,8 @@ $auto_person_type = getVal('person_type', $case_data);
                                 <div class="form-text text-primary small"><i class="fa-solid fa-circle-info"></i> หากผู้ป่วยมี AN ระบบจะดึงมาใส่ให้อัตโนมัติ</div>
                             </div>
                             <div class="col-md-4">
-                                <label class="form-label label-required">วันเวลาที่รับเข้า ICU</label>
-                                <input type="datetime-local" name="admit_date" id="admit_date" class="form-control" required value="<?php echo date('Y-m-d\TH:i'); ?>">
+                                <label class="form-label label-required">วันเวลาที่รับเข้า</label>
+                                <input type="datetime-local" name="admit_date" id="admit_date" class="form-control" step="1" required value="<?php echo date('Y-m-d\TH:i:s'); ?>">
                             </div>
                             <div class="col-md-4">
                                 <label class="form-label">แพทย์เจ้าของไข้</label>
@@ -511,6 +511,35 @@ $auto_person_type = getVal('person_type', $case_data);
 
 <script>
 
+const admitDateInput = document.getElementById('admit_date');
+let admitDateClockTimer = null;
+
+function formatLocalDateTimeWithSeconds(date) {
+    const pad = value => String(value).padStart(2, '0');
+    return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}`
+        + `T${pad(date.getHours())}:${pad(date.getMinutes())}:${pad(date.getSeconds())}`;
+}
+
+function updateAdmitDateClock() {
+    if (admitDateInput) {
+        admitDateInput.value = formatLocalDateTimeWithSeconds(new Date());
+    }
+}
+
+function stopAdmitDateClock() {
+    if (admitDateClockTimer !== null) {
+        window.clearInterval(admitDateClockTimer);
+        admitDateClockTimer = null;
+    }
+}
+
+if (admitDateInput) {
+    updateAdmitDateClock();
+    admitDateClockTimer = window.setInterval(updateAdmitDateClock, 250);
+    admitDateInput.addEventListener('focus', stopAdmitDateClock, { once: true });
+    admitDateInput.addEventListener('input', stopAdmitDateClock);
+}
+
 //ฟังก์ชั่นคำนวณเวลาจาก er to icu
 function calculateDiff() {
     let er = document.getElementById('icu_time_hospital').value;
@@ -585,12 +614,14 @@ document.getElementById('admit_date').addEventListener('change', calculateDiff);
                         try {
                             let d = new Date(aDate);
                             if (!isNaN(d.getTime())) {
+                                stopAdmitDateClock();
                                 let yyyy = d.getFullYear();
                                 let mm = String(d.getMonth() + 1).padStart(2, '0');
                                 let dd = String(d.getDate()).padStart(2, '0');
                                 let hh = String(d.getHours()).padStart(2, '0');
                                 let mins = String(d.getMinutes()).padStart(2, '0');
-                                admitDateInput.value = `${yyyy}-${mm}-${dd}T${hh}:${mins}`;
+                                let secs = String(d.getSeconds()).padStart(2, '0');
+                                admitDateInput.value = `${yyyy}-${mm}-${dd}T${hh}:${mins}:${secs}`;
                             }
                         } catch(e) { console.error('Admit Date parse error', e); }
                     }
