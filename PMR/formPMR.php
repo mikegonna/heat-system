@@ -1,8 +1,4 @@
 <?php
-// 1. เปิดแสดง Error
-error_reporting(E_ALL);
-ini_set('display_errors', 1);
-
 session_start();
 date_default_timezone_set('Asia/Bangkok');
 
@@ -243,7 +239,7 @@ if (!empty($patient['weight']) && !empty($patient['height'])) {
                         <i class="fa-solid fa-pen-to-square me-2"></i>บันทึกอาการ ครั้งที่ <?php echo $track_count + 1; ?>
                     </div>
                     <div class="card-body p-4">
-                        <form action="save_PMR.php" method="POST">
+                        <form action="save_pmr.php" method="POST">
                             <input type="hidden" name="hn" value="<?php echo htmlspecialchars($hn); ?>">
                             <input type="hidden" name="an" value="<?php echo htmlspecialchars($an); ?>">
 

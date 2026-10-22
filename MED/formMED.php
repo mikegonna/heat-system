@@ -420,6 +420,16 @@ if (!empty($patient['weight']) && !empty($patient['height'])) {
                                 </div>
                             </div>
 
+                            <div class="mb-4 p-3 bg-theme-info rounded-3 border">
+                                <div class="form-check">
+                                    <input class="form-check-input" type="checkbox" name="pmr" id="pmr_referral" value="1" <?php echo $disabled_attr; ?>>
+                                    <label class="form-check-label fw-bold text-theme" for="pmr_referral">
+                                        ส่งต่อผู้ป่วยให้เวชศาสตร์ฟื้นฟู (PMR)
+                                    </label>
+                                </div>
+                                <div class="form-text">เลือกเมื่อประเมินแล้วต้องให้ PMR ติดตามต่อ หลังผ่านการติดตาม OCC</div>
+                            </div>
+
                             <!---
                                 <div class="mb-4 d-none p-3 bg-theme-light rounded-3 border" id="med_date_group" style="border-color: var(--v-primary) !important;">
                                     <label class="form-label text-theme fw-bold"><i class="fa-regular fa-calendar-plus me-2"></i>ระบุวันที่นัดส่งต่อเวชศาสตร์ฟื้นฟู <span class="text-danger">*</span></label>
@@ -502,7 +512,6 @@ if (!empty($patient['weight']) && !empty($patient['height'])) {
                         <input type="hidden" name="hn" value="<?php echo htmlspecialchars($hn); ?>">
                         <input type="hidden" name="an" value="<?php echo htmlspecialchars($an); ?>">
                         <input type="hidden" name="occupational" id="edit_occupational">
-                        <input type="hidden" name="pmr" id="edit_pmr">
                         
                         <div class="mb-3">
                             <label for="edit_fu_date" class="form-label small fw-bold text-theme">วันที่และเวลาที่มา Follow-up <span class="text-danger">*</span></label>
@@ -526,6 +535,14 @@ if (!empty($patient['weight']) && !empty($patient['height'])) {
                                         มาไม่ตรงนัด
                                     </label>
                                 </div>
+                            </div>
+                        </div>
+                        <div class="mb-3 p-3 bg-white rounded-3 border">
+                            <div class="form-check">
+                                <input class="form-check-input" type="checkbox" name="pmr" id="edit_pmr" value="1">
+                                <label class="form-check-label fw-bold text-theme" for="edit_pmr">
+                                    ส่งต่อผู้ป่วยให้เวชศาสตร์ฟื้นฟู (PMR)
+                                </label>
                             </div>
                         </div>
                         <div class="mb-4 d-none p-3 bg-theme-info rounded-3 border" id="edit_med_other">
@@ -602,7 +619,7 @@ if (!empty($patient['weight']) && !empty($patient['height'])) {
         function openEditModal(data) {
             document.getElementById('edit_med_id').value = data.id;
             document.getElementById('edit_occupational').value = data.occupational || '0';
-            document.getElementById('edit_pmr').value = data.pmr || '0';
+            document.getElementById('edit_pmr').checked = data.pmr === '1';
             const followupInput = document.getElementById('edit_fu_date');
             followupInput.value = fmtDate(data.fu_date);
 

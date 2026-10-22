@@ -61,7 +61,7 @@ if (isset($_POST['login'])) {
             } elseif ($row['name'] == 'pct') {
                 header("Location: PCT/indexPCT.php");
             } elseif ($row['name'] == 'occ') {
-                header("Location: OCC/indexOCC.php");
+                header("Location: dashboard.php");
             }
             exit(); 
         } else {
