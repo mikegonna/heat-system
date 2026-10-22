@@ -5,6 +5,8 @@ if (!isset($path_prefix)) { $path_prefix = ""; }
 $root_path = $path_prefix != "" ? $path_prefix : "../"; 
 $db_paths = [$root_path . 'database/db_conn.php', 'database/db_conn.php', '../database/db_conn.php'];
 foreach ($db_paths as $path) { if (file_exists($path)) { require_once $path; break; } }
+require_once __DIR__ . '/database/fiscal_year.php';
+$fiscal_date_range = getFiscalDateRange($_GET);
 
 // ดึงเคสรอรับเข้า (PMR) ที่ถูกส่งต่อมาจาก MED
 $incoming_pmr = [];
@@ -13,6 +15,7 @@ if (isset($conn)) {
             FROM ward_details w
             JOIN cases c ON w.case_id = c.id
             WHERE w.status = 'Discharged'
+            AND DATE(w.discharge_date) BETWEEN '{$fiscal_date_range['start_date']}' AND '{$fiscal_date_range['end_date']}'
             AND EXISTS (SELECT 1 FROM med_records m WHERE m.an = w.an AND m.med_status LIKE '%นัดพบแพทย์เวชศาสตร์ฟื้นฟู%')
             AND w.an NOT IN (SELECT an FROM pmr_records)
             ORDER BY w.discharge_date DESC";

@@ -37,6 +37,7 @@
     $can_edit_gp    = $is_admin_or_pct || $user_role === 'gp';
     $can_edit_ward  = $is_admin_or_pct || in_array($user_role, ['a4', 'b3', 'icu', 'rcu']);
     $can_edit_med   = $is_admin_or_pct || $user_role === 'med';
+    $can_edit_occ   = $is_admin_or_pct || $user_role === 'occ';
     $can_edit_pmr   = $is_admin_or_pct || $user_role === 'pmr';
     $can_edit_visit = $is_admin_or_pct || in_array($user_role, ['pcu', 'coc']);
 
@@ -67,6 +68,7 @@
             mysqli_query($conn, "DELETE FROM home_visits WHERE an IN ($an_str)");
             mysqli_query($conn, "DELETE FROM pmr_records WHERE an IN ($an_str)");
             mysqli_query($conn, "DELETE FROM med_records WHERE an IN ($an_str)");
+            mysqli_query($conn, "DELETE FROM occ_records WHERE an IN ($an_str)");
         }
         
         mysqli_query($conn, "DELETE FROM er_details WHERE case_id = '$del_case_id'");
@@ -104,7 +106,7 @@
         $record_id = (int)$_POST['record_id'];
 
     // 🔴 ป้องกันการแก้ไขถ้าเคสถูกปิดแล้ว (ยกเว้น PCT/Admin)
-    if (!$is_admin_or_pct && in_array($edit_type, ['ER', 'GP', 'WARD', 'MED', 'PMR', 'VISIT'])) {
+    if (!$is_admin_or_pct && in_array($edit_type, ['ER', 'GP', 'WARD', 'MED', 'PMR', 'OCC', 'VISIT'])) {
         $case_id_check = null;
         if ($edit_type === 'ER') {
             $q = mysqli_query($conn, "SELECT case_id FROM er_details WHERE id=$record_id");
@@ -115,8 +117,8 @@
         } elseif ($edit_type === 'WARD') {
             $q = mysqli_query($conn, "SELECT case_id FROM ward_details WHERE id=$record_id");
             if ($r = mysqli_fetch_assoc($q)) $case_id_check = $r['case_id'];
-        } elseif (in_array($edit_type, ['MED', 'PMR'])) {
-            $table = ($edit_type === 'MED') ? 'med_records' : 'pmr_records';
+        } elseif (in_array($edit_type, ['MED', 'PMR', 'OCC'])) {
+            $table = ['MED' => 'med_records', 'PMR' => 'pmr_records', 'OCC' => 'occ_records'][$edit_type];
             $q = mysqli_query($conn, "SELECT w.case_id FROM $table m JOIN ward_details w ON m.an=w.an WHERE m.id=$record_id LIMIT 1");
             if ($r = mysqli_fetch_assoc($q)) $case_id_check = $r['case_id'];
         } elseif ($edit_type === 'VISIT') {
@@ -255,6 +257,7 @@
                 mysqli_query($conn, "UPDATE home_visits SET an='$an' WHERE an='$old_an_esc'");
                 mysqli_query($conn, "UPDATE pmr_records SET an='$an' WHERE an='$old_an_esc'");
                 mysqli_query($conn, "UPDATE med_records SET an='$an' WHERE an='$old_an_esc'");
+                mysqli_query($conn, "UPDATE occ_records SET an='$an' WHERE an='$old_an_esc'");
             }
         } else {
             $_SESSION['statusMsg'] = "ไม่อนุญาตให้แก้ไขฟอร์มของหอผู้ป่วยอื่น (อนุญาตเฉพาะ PCT/Admin)";
@@ -681,9 +684,15 @@ endif;
             // 3. Follow-ups
             if (!empty($ans)) {
                 $an_str = implode(',', $ans);
-                $tables = ['MED' => 'med_records', 'PMR' => 'pmr_records', 'VISIT' => 'home_visits'];
-                foreach($tables as $tKey => $tName) {
-                    $qOther = mysqli_query($conn, "SELECT * FROM $tName WHERE an IN ($an_str) ORDER BY record_datetime ASC");
+                $tables = [
+                    'MED' => ['med_records', 'record_datetime'],
+                    'PMR' => ['pmr_records', 'record_datetime'],
+                    'VISIT' => ['home_visits', 'record_datetime'],
+                    'OCC' => ['occ_records', 'record_date']
+                ];
+                foreach($tables as $tKey => [$tName, $dateColumn]) {
+                    $dateSelect = $tKey === 'OCC' ? ', record_date AS record_datetime' : '';
+                    $qOther = mysqli_query($conn, "SELECT *$dateSelect FROM $tName WHERE an IN ($an_str) ORDER BY $dateColumn ASC");
                     if($qOther && mysqli_num_rows($qOther) > 0) {
                         $grouped = [];
                         while ($o = mysqli_fetch_assoc($qOther)) { $grouped[$o['an']][] = $o; }
@@ -760,6 +769,8 @@ endif;
                             $title='บันทึกเวชศาสตร์ฟื้นฟู (PMR Follow-up)'; $cardClass = 'card-pmr'; $iconClass = 'icon-pmr'; $faIcon = 'fa-person-walking-with-cane'; 
                         } elseif($baseType=='VISIT') { 
                             $title='บันทึกเยี่ยมบ้าน (Home Visit)'; $cardClass = 'card-visit'; $iconClass = 'icon-visit'; $faIcon = 'fa-house-medical'; 
+                        } elseif($baseType=='OCC') {
+                            $title='บันทึกอาชีวเวชกรรม (OCC Follow-up)'; $cardClass = 'card-med'; $iconClass = 'icon-med'; $faIcon = 'fa-briefcase-medical';
                         }
                     }
                     $time_str = date('H:i', $node['ts']);
@@ -1006,6 +1017,7 @@ endif;
                                             // 🟢 ตรวจสอบเงื่อนไขว่าอนุญาตให้แสดงปุ่มแก้ไขหรือไม่
                                             if ($can_edit_this_case) {
                                                 if($baseType == 'MED' && $can_edit_med) $can_edit_sub = true;
+                                                if($baseType == 'OCC' && $can_edit_occ) $can_edit_sub = true;
                                                 if($baseType == 'PMR' && $can_edit_pmr) $can_edit_sub = true;
                                                 if($baseType == 'VISIT' && $can_edit_visit) $can_edit_sub = true;
                                             }
@@ -1013,9 +1025,15 @@ endif;
                                             if($can_edit_sub):
                                                 $subAttrData = htmlspecialchars(json_encode($r), ENT_QUOTES, 'UTF-8');
                                         ?>
-                                            <button class="btn btn-sm btn-outline-primary py-0 px-2" style="font-size: 0.8rem; border-radius: 4px;" data-json="<?php echo $subAttrData; ?>" onclick="openRecordEdit('<?php echo $baseType; ?>', this)">
-                                                <i class="fa-solid fa-pen"></i> แก้ไข
-                                            </button>
+                                            <?php if ($baseType === 'OCC'): ?>
+                                                <a class="btn btn-sm btn-outline-primary py-0 px-2" style="font-size: 0.8rem; border-radius: 4px;" href="OCC/edit_occ.php?id=<?php echo (int)$r['id']; ?>">
+                                                    <i class="fa-solid fa-pen"></i> แก้ไข
+                                                </a>
+                                            <?php else: ?>
+                                                <button class="btn btn-sm btn-outline-primary py-0 px-2" style="font-size: 0.8rem; border-radius: 4px;" data-json="<?php echo $subAttrData; ?>" onclick="openRecordEdit('<?php echo $baseType; ?>', this)">
+                                                    <i class="fa-solid fa-pen"></i> แก้ไข
+                                                </button>
+                                            <?php endif; ?>
                                         <?php endif; ?>
                                     </div>
                                 </div>
@@ -1041,6 +1059,21 @@ endif;
                                     <div class="fm-block">
                                         <div class="fm-block-label">บันทึกเพิ่มเติม:</div>
                                         <div class="fm-value p-0"><?php echo nl2br(htmlspecialchars((string)($r[strtolower($baseType).'_note'] ?? '-'))); ?></div>
+                                    </div>
+                                <?php elseif($baseType == 'OCC'): ?>
+                                    <div class="fm-row">
+                                        <div class="fm-col-half">
+                                            <div class="fm-label">วันที่ Follow-up</div>
+                                            <div class="fm-value"><?php echo !empty($r['fu_date']) ? date('d/m/Y H:i', strtotime($r['fu_date'])) : '-'; ?></div>
+                                        </div>
+                                        <div class="fm-col-half">
+                                            <div class="fm-label">สถานะ OCC</div>
+                                            <div class="fm-value text-primary fw-bold"><?php echo htmlspecialchars((string)($r['occ_status'] ?? '-'), ENT_QUOTES, 'UTF-8'); ?></div>
+                                        </div>
+                                    </div>
+                                    <div class="fm-block">
+                                        <div class="fm-block-label">บันทึก OCC:</div>
+                                        <div class="fm-value p-0"><?php echo nl2br(htmlspecialchars((string)($r['occ_note'] ?? '-'), ENT_QUOTES, 'UTF-8')); ?></div>
                                     </div>
                                 
                                 <?php elseif($baseType == 'VISIT'): ?>

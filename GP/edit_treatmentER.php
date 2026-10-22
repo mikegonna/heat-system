@@ -79,6 +79,7 @@ if (isset($_GET['id'])) {
     if ($user_role == 'icu') require_once '../header_icu.php';
     elseif ($user_role == 'pct') require_once '../header_pct.php';
     elseif ($user_role == 'er') require_once '../header_er.php';
+    elseif ($user_role == 'gp') require_once '../header_gp.php';
     else require_once '../header_ward.php'; 
 ?>
 

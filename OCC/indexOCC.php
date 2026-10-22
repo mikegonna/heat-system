@@ -1,18 +1,16 @@
 <?php
-// 1. เปิดแสดง Error
-error_reporting(E_ALL);
-ini_set('display_errors', 1);
-
 session_start();
 date_default_timezone_set('Asia/Bangkok');
 
 if (!isset($_SESSION['user_id'])) { header("Location: ../login.php"); exit(); }
 require_once '../database/db_conn.php';
+require_once '../database/fiscal_year.php';
 
 // --- FILTER & PAGINATION ---
 $search = isset($_GET['search']) ? $_GET['search'] : '';
-$start_date = isset($_GET['start_date']) ? $_GET['start_date'] : date('Y-m-d', strtotime('-90 days'));
-$end_date = isset($_GET['end_date']) ? $_GET['end_date'] : date('Y-m-d');
+$fiscal_date_range = getFiscalDateRange($_GET);
+$start_date = $fiscal_date_range['start_date'];
+$end_date = $fiscal_date_range['end_date'];
 $active_tab = isset($_GET['tab']) ? $_GET['tab'] : 'ongoing';
 
 // ตั้งค่าหน้า
@@ -27,9 +25,7 @@ $filterSQL = "";
 if (!empty($search)) {
     $filterSQL .= " AND (c.hn LIKE '%$search%' OR w.an LIKE '%$search%' OR c.patient_name LIKE '%$search%') ";
 }
-if (!empty($start_date) && !empty($end_date)) {
-    $filterSQL .= " AND DATE(COALESCE(w.discharge_date, w.admit_date)) BETWEEN '$start_date' AND '$end_date' ";
-}
+$filterSQL .= " AND DATE(COALESCE(w.discharge_date, w.admit_date)) BETWEEN '$start_date' AND '$end_date' ";
 
 // ---------------------------------------------------------------------------
 // Helper Function: สร้าง Timeline (ใหม่ - ล่าสุดอยู่บนสุด)
@@ -114,7 +110,7 @@ $baseWait = "FROM ward_details w
                  WHERE wpn.ward_detail_id = w.id 
                  AND wpn.treatment_result LIKE 'Discharge%'
              )
-             AND (SELECT COUNT(*) FROM med_records mr WHERE mr.an = w.an) = 0
+             AND (SELECT COUNT(*) FROM occ_records o WHERE o.an = w.an) = 0
              $filterSQL";
 
 $qCountWait = $conn->query("SELECT COUNT(DISTINCT w.id) as total_w " . $baseWait);
@@ -125,10 +121,8 @@ $sqlWait = "SELECT w.case_id, w.an, w.discharge_date, w.status as ward_status, w
                c.hn as hn, c.patient_name, c.age, c.phone, c.department, c.person_type,
                e.cause_factor, e.risk_factors, e.FstDx as er_dx, e.recorded_at as er_time,
                w.icu_diagnosis, w.final_diagnosis, w.initial_diagnosis,
-               (SELECT COUNT(*) FROM med_records mr WHERE mr.an = w.an) as track_count,
-               (SELECT MAX(record_datetime) FROM med_records mr WHERE mr.an = w.an) as last_track,
-               (SELECT med_status FROM med_records mr WHERE mr.an = w.an ORDER BY record_datetime DESC LIMIT 1) as med_status,
-               (SELECT next_med_date FROM med_records mr WHERE mr.an = w.an ORDER BY record_datetime DESC LIMIT 1) as latest_next_date
+               (SELECT COUNT(*) FROM occ_records o WHERE o.an = w.an) as track_count,
+               (SELECT MAX(record_date) FROM occ_records o WHERE o.an = w.an) as last_track
             $baseWait
             GROUP BY w.id
             ORDER BY w.discharge_date DESC
@@ -143,7 +137,7 @@ $baseHist = "FROM ward_details w
              LEFT JOIN er_details e ON e.id = (SELECT MAX(id) FROM er_details WHERE case_id = c.id)
              WHERE w.status = 'Discharged'
              AND EXISTS (SELECT 1 FROM ward_progress_notes wpn WHERE wpn.ward_detail_id = w.id AND wpn.treatment_result LIKE 'Discharge%')
-             AND (SELECT COUNT(*) FROM med_records mr WHERE mr.an = w.an) > 0
+             AND (SELECT COUNT(*) FROM occ_records o WHERE o.an = w.an) > 0
              $filterSQL";
 
 $qCountHist = $conn->query("SELECT COUNT(DISTINCT w.id) as total_h " . $baseHist);
@@ -154,10 +148,8 @@ $sqlHist = "SELECT w.case_id, w.an, w.discharge_date, w.status as ward_status, w
                c.hn as hn, c.patient_name, c.age, c.phone, c.department, c.person_type,
                e.cause_factor, e.risk_factors, e.FstDx as er_dx, e.recorded_at as er_time,
                w.icu_diagnosis, w.final_diagnosis, w.initial_diagnosis,
-               (SELECT COUNT(*) FROM med_records mr WHERE mr.an = w.an) as track_count,
-               (SELECT MAX(record_datetime) FROM med_records mr WHERE mr.an = w.an) as last_track,
-               (SELECT med_status FROM med_records mr WHERE mr.an = w.an ORDER BY record_datetime DESC LIMIT 1) as med_status,
-               (SELECT next_med_date FROM med_records mr WHERE mr.an = w.an ORDER BY record_datetime DESC LIMIT 1) as latest_next_date
+               (SELECT COUNT(*) FROM occ_records o WHERE o.an = w.an) as track_count,
+               (SELECT MAX(record_date) FROM occ_records o WHERE o.an = w.an) as last_track
             $baseHist
             GROUP BY w.id
             ORDER BY last_track DESC
@@ -174,14 +166,14 @@ function getPaginationUrl($tab, $page_w, $page_h, $search, $start_date, $end_dat
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>ระบบนัดติดตามอาการ (MED)</title>
+    <title>ระบบติดตามอาชีวเวชกรรม (OCC)</title>
     <link href="../bootstrap-5.0.2-dist/css/bootstrap.min.css" rel="stylesheet">
     <link href="https://fonts.googleapis.com/css2?family=Sarabun:wght@300;400;500;600&family=Prompt:wght@300;400;500;600&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
     <style>
         :root {
-            --v-primary: #0284c7; /* สีฟ้า MED */
+            --v-primary: #0284c7;
             --v-primary-hover: #0369a1;
             --v-bg: #f0f9ff; 
             --v-light: #e0f2fe;
@@ -364,18 +356,18 @@ function getPaginationUrl($tab, $page_w, $page_h, $search, $start_date, $end_dat
 <?php 
     $path_prefix = "../"; 
     if(file_exists('../header_followup.php')) require_once '../header_followup.php'; 
-    else echo "<nav class='navbar navbar-dark bg-primary shadow-sm'><div class='container'><a class='navbar-brand'>MED Dashboard</a></div></nav>";
+    else echo "<nav class='navbar navbar-dark bg-primary shadow-sm'><div class='container'><a class='navbar-brand'>OCC Dashboard</a></div></nav>";
 ?>
 
 <div class="container-fluid px-2 px-md-4 py-3 py-md-4" style="max-width: 1450px;">
     
     <div class="page-header">
         <div>
-            <h4 class="fw-bold text-dark mb-0"><i class="fa-solid fa-calendar-check me-2 text-theme"></i>ระบบนัดติดตามอาการ (MED)</h4>
-            <small class="text-muted mt-2 d-block"><i class="fa-solid fa-user-doctor me-1"></i> ผู้ใช้งาน: คลินิกอายุรกรรม</small>
+            <h4 class="fw-bold text-dark mb-0"><i class="fa-solid fa-calendar-check me-2 text-theme"></i>ระบบติดตามอาชีวเวชกรรม (OCC)</h4>
+            <small class="text-muted mt-2 d-block"><i class="fa-solid fa-user-doctor me-1"></i> ผู้ใช้งาน: คลินิกอาชีวเวชกรรม</small>
         </div>
         <div class="d-flex gap-2 align-items-center">
-            <span style="background-color: var(--v-primary); color: white;" class="badge rounded-pill px-4 py-2 fs-6 shadow-sm"><i class="fa-regular fa-calendar me-2"></i> <?php echo date('d M Y'); ?></span>
+            <span style="background-color: var(--v-primary); color: white;" class="badge rounded-pill px-4 py-2 fs-6 shadow-sm"><i class="fa-regular fa-calendar me-2"></i> ปีงบประมาณ พ.ศ. <?php echo $fiscal_date_range['year_label']; ?></span>
         </div>
     </div>
 
@@ -409,7 +401,7 @@ function getPaginationUrl($tab, $page_w, $page_h, $search, $start_date, $end_dat
     </div>
 
     <!-- แถบเมนู Tabs -->
-    <ul class="nav nav-tabs mb-3 border-0 flex-nowrap overflow-auto" id="medTab" role="tablist" style="-webkit-overflow-scrolling: touch; padding-bottom: 2px;">
+    <ul class="nav nav-tabs mb-3 border-0 flex-nowrap overflow-auto" id="occTab" role="tablist" style="-webkit-overflow-scrolling: touch; padding-bottom: 2px;">
         <li class="nav-item">
             <button class="nav-link <?php echo ($active_tab == 'ongoing') ? 'active' : ''; ?> d-flex align-items-center text-nowrap" id="ongoing-tab" data-bs-toggle="tab" data-bs-target="#ongoing" type="button" onclick="updateUrlTab('ongoing')">
                 <i class="fa-solid fa-spinner me-2"></i>รอติดตามอาการ
@@ -425,7 +417,7 @@ function getPaginationUrl($tab, $page_w, $page_h, $search, $start_date, $end_dat
         </li>
     </ul>
 
-    <div class="tab-content" id="medTabContent">
+    <div class="tab-content" id="occTabContent">
         
         <!-- 🔴 ONGOING TAB (รอติดตามอาการ) -->
         <div class="tab-pane fade <?php echo ($active_tab == 'ongoing') ? 'show active' : ''; ?>" id="ongoing" role="tabpanel">
@@ -495,9 +487,9 @@ function getPaginationUrl($tab, $page_w, $page_h, $search, $start_date, $end_dat
                                         </td>
                                         <td data-label="จัดการ" class="text-center align-middle">
                                             <?php 
-                                                $med_url = "formMED.php?hn=" . urlencode($row['hn']) . "&an=" . urlencode($row['an']); 
+                                                $occ_url = "formOCC.php?hn=" . urlencode($row['hn']) . "&an=" . urlencode($row['an']);
                                             ?>
-                                            <a href="<?php echo htmlspecialchars($med_url); ?>" class="btn btn-theme text-white btn-sm rounded-pill px-3 shadow-sm fw-bold w-100">
+                                            <a href="<?php echo htmlspecialchars($occ_url); ?>" class="btn btn-theme text-white btn-sm rounded-pill px-3 shadow-sm fw-bold w-100">
                                                 <i class="fa-solid fa-stethoscope me-1"></i> <?php echo $btn_text; ?>
                                             </a>
                                         </td>
@@ -603,7 +595,7 @@ function getPaginationUrl($tab, $page_w, $page_h, $search, $start_date, $end_dat
 
                                         <td data-label="จัดการ" class="text-center align-middle">
                                             <?php 
-                                                $hist_url = "formMED.php?hn=" . urlencode($row['hn']) . "&an=" . urlencode($row['an']); 
+                                                $hist_url = "formOCC.php?hn=" . urlencode($row['hn']) . "&an=" . urlencode($row['an']);
                                             ?>
                                             <a href="<?php echo htmlspecialchars($hist_url); ?>" class="btn btn-outline-theme btn-sm rounded-pill px-3 shadow-sm w-100">
                                                 <i class="fa-solid fa-folder-open me-1"></i> ประวัติ

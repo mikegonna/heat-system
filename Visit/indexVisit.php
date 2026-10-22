@@ -8,6 +8,7 @@ date_default_timezone_set('Asia/Bangkok');
 
 if (!isset($_SESSION['user_id'])) { header("Location: ../login.php"); exit(); }
 require_once '../database/db_conn.php';
+require_once '../database/fiscal_year.php';
 
 // --- 💡 ตรวจสอบประเภทผู้ใช้ ---
 $current_user_name = strtolower($_SESSION['name'] ?? '');
@@ -68,8 +69,9 @@ if ($is_pcu) {
 
 // --- 💡 FILTER ---
 $search = isset($_GET['search']) ? $_GET['search'] : '';
-$start_date = isset($_GET['start_date']) ? $_GET['start_date'] : '';
-$end_date = isset($_GET['end_date']) ? $_GET['end_date'] : '';
+$fiscal_date_range = getFiscalDateRange($_GET);
+$start_date = $fiscal_date_range['start_date'];
+$end_date = $fiscal_date_range['end_date'];
 $active_tab = isset($_GET['tab']) ? $_GET['tab'] : 'wait'; // จดจำแท็บที่เปิดอยู่
 
 // --- 💡 PAGINATION SETUP (จำกัด 10 เคสต่อหน้า) ---
@@ -90,16 +92,8 @@ if (!empty($search)) {
     $filterSQL    .= " AND (c.hn LIKE '%$search%' OR w.an LIKE '%$search%' OR c.patient_name LIKE '%$search%') ";
     $filterSQL_er .= " AND (c.hn LIKE '%$search%' OR c.patient_name LIKE '%$search%') ";
 }
-if (!empty($start_date) && !empty($end_date)) {
-    $filterSQL    .= " AND DATE(COALESCE(w.discharge_date, w.admit_date, e.recorded_at, c.created_at)) BETWEEN '$start_date' AND '$end_date' ";
-    $filterSQL_er .= " AND DATE(COALESCE(e.recorded_at, c.created_at)) BETWEEN '$start_date' AND '$end_date' ";
-} elseif (!empty($start_date)) {
-    $filterSQL    .= " AND DATE(COALESCE(w.discharge_date, w.admit_date, e.recorded_at, c.created_at)) >= '$start_date' ";
-    $filterSQL_er .= " AND DATE(COALESCE(e.recorded_at, c.created_at)) >= '$start_date' ";
-} elseif (!empty($end_date)) {
-    $filterSQL    .= " AND DATE(COALESCE(w.discharge_date, w.admit_date, e.recorded_at, c.created_at)) <= '$end_date' ";
-    $filterSQL_er .= " AND DATE(COALESCE(e.recorded_at, c.created_at)) <= '$end_date' ";
-}
+$filterSQL    .= " AND DATE(COALESCE(w.discharge_date, w.admit_date, e.recorded_at, c.created_at)) BETWEEN '$start_date' AND '$end_date' ";
+$filterSQL_er .= " AND DATE(COALESCE(e.recorded_at, c.created_at)) BETWEEN '$start_date' AND '$end_date' ";
 
 function getSeverity($dx) {
     if (preg_match('/Heat Stroke|Heat Exhaustion|Rhabdomyolysis \(CPK > 1,000\)/i', $dx)) {
@@ -457,7 +451,9 @@ $kpi_wait_q = $conn->query("SELECT COUNT(*) as t FROM (
     WHERE (
         (w.id IS NOT NULL AND w.status = 'Discharged' AND IFNULL(w.discharge_status,'') NOT IN ('Dead','Refer'))
         OR (w.id IS NULL AND e.id IS NOT NULL AND e.disposition = 'Discharge')
-    )AND COALESCE(w.final_diagnosis, w.initial_diagnosis, e.FstDx, '')
+    )
+    AND DATE(COALESCE(w.discharge_date, w.admit_date, e.recorded_at, c.created_at)) BETWEEN '$start_date' AND '$end_date'
+    AND COALESCE(w.final_diagnosis, w.initial_diagnosis, e.FstDx, '')
     REGEXP 'Heat Stroke|Heat Exhaustion|Heat Syncope|Heat Cramps|Heat Tetany|Heat Edema|Prickly Heat|Rhabdomyolysis'
     $visit_unit_filter
     AND (SELECT COUNT(*) FROM home_visits hv WHERE hv.hn = c.hn AND (hv.an = w.an OR hv.an IS NULL OR hv.an = '')) = 0
@@ -474,6 +470,7 @@ $kpi_tracked_q = $conn->query("SELECT COUNT(*) as t FROM (
         (w.id IS NOT NULL AND w.status = 'Discharged' AND IFNULL(w.discharge_status,'') NOT IN ('Dead','Refer'))
         OR (w.id IS NULL AND e.id IS NOT NULL AND e.disposition = 'Discharge')
     )
+    AND DATE(COALESCE(w.discharge_date, w.admit_date, e.recorded_at, c.created_at)) BETWEEN '$start_date' AND '$end_date'
     AND COALESCE(w.final_diagnosis, w.initial_diagnosis, e.FstDx, '') 
         REGEXP 'Heat Stroke|Heat Exhaustion|Rhabdomyolysis \\\\(CPK > 1,000\\\\)'
     $visit_unit_filter
@@ -490,6 +487,7 @@ $kpi_done_q = $conn->query("SELECT COUNT(*) as t FROM (
         (w.id IS NOT NULL AND w.status = 'Discharged' AND IFNULL(w.discharge_status,'') NOT IN ('Dead','Refer'))
         OR (w.id IS NULL AND e.id IS NOT NULL AND e.disposition = 'Discharge')
     )
+    AND DATE(COALESCE(w.discharge_date, w.admit_date, e.recorded_at, c.created_at)) BETWEEN '$start_date' AND '$end_date'
     $visit_unit_filter
     AND (
         -- Severe ครบ 2 ครั้ง
@@ -562,7 +560,7 @@ $kpi_total = $kpi_wait + $kpi_tracked + $kpi_done;
             <small class="text-muted mt-2 d-block"><i class="fa-solid fa-user-nurse me-1"></i> ผู้ใช้งาน: <?php echo $is_coc ? 'COC' : 'PCU'; ?></small>
         </div>
         <div class="d-flex gap-2 align-items-center">
-            <span style="background-color: var(--v-primary); color: white;" class="badge rounded-pill px-4 py-2 fs-6 shadow-sm"><i class="fa-regular fa-calendar me-2"></i> <?php echo date('d M Y'); ?></span>
+            <span style="background-color: var(--v-primary); color: white;" class="badge rounded-pill px-4 py-2 fs-6 shadow-sm"><i class="fa-regular fa-calendar me-2"></i> ปีงบประมาณ พ.ศ. <?php echo $fiscal_date_range['year_label']; ?></span>
         </div>
     </div>
 

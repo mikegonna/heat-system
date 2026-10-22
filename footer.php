@@ -21,6 +21,7 @@ elseif (isset($_SESSION['name'])) {
             $bgColor = '#8b5cf6'; // สีธีม PMR (ม่วงอ่อนหรูหรา)
             break;
         case 'med':
+        case 'occ':
             $bgColor = '#0284c7'; // สีธีม MED (ฟ้า Sky-600)
             break;
         case 'er':

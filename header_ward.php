@@ -6,6 +6,8 @@ if (session_status() == PHP_SESSION_NONE) { session_start(); }
 $root_path = isset($path_prefix) ? $path_prefix : '../'; 
 $db_paths = [$root_path . 'database/db_conn.php', 'database/db_conn.php', '../database/db_conn.php'];
 foreach ($db_paths as $path) { if (file_exists($path)) { require_once $path; break; } }
+require_once __DIR__ . '/database/fiscal_year.php';
+$fiscal_date_range = getFiscalDateRange($_GET);
 
 // --- [REAL DATA QUERY] ---
 $incoming_patients = [];
@@ -18,6 +20,7 @@ if ($current_ward != '' && $current_ward != 'admin' && $current_ward != 'pct' &&
               JOIN cases c ON e.case_id = c.id
               WHERE e.disposition = 'Admit' 
               AND e.admit_type LIKE '%$current_ward%'
+              AND DATE(e.recorded_at) BETWEEN '{$fiscal_date_range['start_date']}' AND '{$fiscal_date_range['end_date']}'
               AND NOT EXISTS (SELECT 1 FROM ward_details w WHERE w.case_id = c.id)
               ORDER BY e.recorded_at DESC";
     $resER = $conn->query($sqlER);
@@ -29,6 +32,7 @@ if ($current_ward != '' && $current_ward != 'admin' && $current_ward != 'pct' &&
                 JOIN cases c ON w.case_id = c.id
                 WHERE w.status = 'AdmitWait' 
                 AND w.admit_type LIKE '%$current_ward%'
+                AND DATE(w.admit_date) BETWEEN '{$fiscal_date_range['start_date']}' AND '{$fiscal_date_range['end_date']}'
                 AND NOT EXISTS (SELECT 1 FROM ward_details w2 WHERE w2.case_id = w.case_id AND w2.id > w.id)
                 ORDER BY w.admit_date DESC";
     $resWard = $conn->query($sqlWard);

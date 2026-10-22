@@ -5,6 +5,8 @@ if (!isset($path_prefix)) { $path_prefix = ""; }
 $root_path = $path_prefix != "" ? $path_prefix : "../"; 
 $db_paths = [$root_path . 'database/db_conn.php', 'database/db_conn.php', '../database/db_conn.php'];
 foreach ($db_paths as $path) { if (file_exists($path)) { require_once $path; break; } }
+require_once __DIR__ . '/database/fiscal_year.php';
+$fiscal_date_range = getFiscalDateRange($_GET);
 
 // ดึงเคสรอรับเข้า (AdmitWait) ของ ICU (รวมทั้งจาก ER และ รับย้ายจากแผนกอื่น)
 $incoming_icu = [];
@@ -15,6 +17,7 @@ if (isset($conn)) {
               JOIN cases c ON e.case_id = c.id
               WHERE e.disposition = 'Admit' 
               AND (e.admit_type = 'ICU' OR e.admit_type LIKE '%ICU%')
+              AND DATE(e.recorded_at) BETWEEN '{$fiscal_date_range['start_date']}' AND '{$fiscal_date_range['end_date']}'
               AND e.FstDx NOT LIKE 'รับย้ายจาก%' 
               AND NOT EXISTS (SELECT 1 FROM ward_details w WHERE w.case_id = c.id)";
     $resER = $conn->query($sqlER);
@@ -26,6 +29,7 @@ if (isset($conn)) {
                 JOIN cases c ON w.case_id = c.id
                 WHERE w.status = 'AdmitWait' 
                 AND w.admit_type LIKE '%ICU%'
+                AND DATE(w.admit_date) BETWEEN '{$fiscal_date_range['start_date']}' AND '{$fiscal_date_range['end_date']}'
                 AND NOT EXISTS (SELECT 1 FROM ward_details w2 WHERE w2.case_id = w.case_id AND w2.id > w.id)";
     $resWard = $conn->query($sqlWard);
     if($resWard) while($r = $resWard->fetch_assoc()) $incoming_icu[] = $r;

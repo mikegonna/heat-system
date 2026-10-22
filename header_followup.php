@@ -5,21 +5,31 @@ if (!isset($path_prefix)) { $path_prefix = ""; }
 $root_path = $path_prefix != "" ? $path_prefix : "../"; 
 $db_paths = [$root_path . 'database/db_conn.php', 'database/db_conn.php', '../database/db_conn.php'];
 foreach ($db_paths as $path) { if (file_exists($path)) { require_once $path; break; } }
+require_once __DIR__ . '/database/fiscal_year.php';
+$fiscal_date_range = getFiscalDateRange($_GET);
 
-// ดึงเคสรอรับเข้า (MED)
-$incoming_med = [];
+$is_occ_role = strtolower(trim($_SESSION['name'] ?? '')) === 'occ';
+$followup_table = $is_occ_role ? 'occ_records' : 'med_records';
+$followup_index = $is_occ_role ? 'OCC/indexOCC.php' : 'MED/indexMED.php';
+$followup_history = $is_occ_role ? 'OCC/history_centralOCC.php' : 'MED/history_centralMed.php';
+$followup_service = $is_occ_role ? 'OCC' : 'MED';
+$followup_department = $is_occ_role ? 'อาชีวเวชกรรม' : 'อายุรกรรม';
+
+// ดึงเคสรอติดตามครั้งแรก
+$incoming_followup = [];
 if (isset($conn)) {
     $sql = "SELECT w.an, c.patient_name, w.discharge_date, w.discharge_detail
             FROM ward_details w
             JOIN cases c ON w.case_id = c.id
             WHERE w.status = 'Discharged'
+            AND DATE(w.discharge_date) BETWEEN '{$fiscal_date_range['start_date']}' AND '{$fiscal_date_range['end_date']}'
             AND EXISTS (SELECT 1 FROM ward_progress_notes wpn WHERE wpn.ward_detail_id = w.id AND wpn.treatment_result LIKE 'Discharge%')
-            AND w.an NOT IN (SELECT an FROM med_records)
+            AND w.an NOT IN (SELECT an FROM $followup_table)
             ORDER BY w.discharge_date DESC";
     $result = $conn->query($sql);
-    if($result) while($row = $result->fetch_assoc()) $incoming_med[] = $row;
+    if($result) while($row = $result->fetch_assoc()) $incoming_followup[] = $row;
 }
-$med_count = count($incoming_med);
+$followup_count = count($incoming_followup);
 ?>
 
 <style>
@@ -190,8 +200,8 @@ $med_count = count($incoming_med);
             <img src="<?php echo $path_prefix; ?>img/AnanLogo.png" width="50" alt="Logo">
         </div>
         <div class="d-flex flex-column text-white">
-            <span class="fw-bolder" style="font-size: 1.25rem; letter-spacing: 0.5px; text-shadow: 0 2px 4px rgba(0,0,0,0.2);">MED</span>
-            <span style="font-size: 0.75rem; opacity: 0.9; font-weight: 300;">อายุรกรรม</span>
+            <span class="fw-bolder" style="font-size: 1.25rem; letter-spacing: 0.5px; text-shadow: 0 2px 4px rgba(0,0,0,0.2);"><?php echo $followup_service; ?></span>
+            <span style="font-size: 0.75rem; opacity: 0.9; font-weight: 300;"><?php echo $followup_department; ?></span>
         </div>
     </a>
     
@@ -207,12 +217,12 @@ $med_count = count($incoming_med);
             </a>
         </li>
         <li class="nav-item">
-            <a class="nav-link nav-link-custom <?php echo (basename($_SERVER['PHP_SELF']) == 'indexMED.php') ? 'active' : ''; ?>" href="<?php echo $path_prefix; ?>MED/indexMED.php">
+            <a class="nav-link nav-link-custom <?php echo (basename($_SERVER['PHP_SELF']) == ($is_occ_role ? 'indexOCC.php' : 'indexMED.php')) ? 'active' : ''; ?>" href="<?php echo $path_prefix . $followup_index; ?>">
                 <i class="fa-solid fa-stethoscope me-1"></i> จัดการติดตามอาการ
             </a>
         </li>
         <li class="nav-item">
-            <a class="nav-link nav-link-custom <?php echo (basename($_SERVER['PHP_SELF']) == 'history_centralMed.php') ? 'active' : ''; ?>" href="<?php echo $path_prefix; ?>MED/history_centralMed.php">
+            <a class="nav-link nav-link-custom <?php echo (basename($_SERVER['PHP_SELF']) == ($is_occ_role ? 'history_centralOCC.php' : 'history_centralMed.php')) ? 'active' : ''; ?>" href="<?php echo $path_prefix . $followup_history; ?>">
                 <i class="fa-solid fa-address-book me-1"></i> ประวัติการรักษา
             </a>
         </li>
@@ -221,24 +231,24 @@ $med_count = count($incoming_med);
       <ul class="navbar-nav ms-auto align-items-center gap-3">
             <li class="nav-item dropdown me-lg-3 w-100">
                 <a class="nav-link text-white position-relative p-2 bell-link" href="#" data-bs-toggle="dropdown" aria-expanded="false">
-                    <i class="fa-solid fa-bell fa-lg <?php echo ($med_count > 0) ? 'bell-active' : ''; ?>"></i>
-                    <span class="d-lg-none fw-bold text-dark">รอติดตามอาการครั้งแรก</span>
-                    <?php if ($med_count > 0): ?>
+                    <i class="fa-solid fa-bell fa-lg <?php echo ($followup_count > 0) ? 'bell-active' : ''; ?>"></i>
+                    <span class="d-lg-none fw-bold text-dark">รอติดตามครั้งแรก</span>
+                    <?php if ($followup_count > 0): ?>
                         <span class="position-absolute top-0 start-100 translate-middle badge rounded-pill bg-warning text-dark shadow-sm fw-bold noti-badge">
-                            <?php echo $med_count; ?>
+                            <?php echo $followup_count; ?>
                         </span>
                     <?php endif; ?>
                 </a>
                 <ul class="dropdown-menu dropdown-menu-end dropdown-menu-modern noti-dropdown">
                     <li class="p-3 border-bottom bg-light d-flex justify-content-between align-items-center">
-                        <h6 class="fw-bold mb-0 text-dark"><i class="fa-solid fa-clipboard-list text-primary me-2"></i>รอติดตามอาการครั้งแรก</h6>
-                        <span class="badge bg-warning text-dark rounded-pill px-2 py-1"><?php echo $med_count; ?></span>
+                        <h6 class="fw-bold mb-0 text-dark"><i class="fa-solid fa-clipboard-list text-primary me-2"></i>รอติดตามครั้งแรก (<?php echo $followup_service; ?>)</h6>
+                        <span class="badge bg-warning text-dark rounded-pill px-2 py-1"><?php echo $followup_count; ?></span>
                     </li>
                     <div class="custom-scrollbar" style="max-height: 350px; overflow-y: auto;">
-                    <?php if ($med_count > 0): ?>
-                        <?php foreach ($incoming_med as $case): ?>
+                    <?php if ($followup_count > 0): ?>
+                        <?php foreach ($incoming_followup as $case): ?>
                             <li>
-                                <a class="dropdown-item p-3 border-bottom case-card" href="<?php echo $path_prefix; ?>MED/indexMED.php?search=<?php echo urlencode($case['an']); ?>">
+                                <a class="dropdown-item p-3 border-bottom case-card" href="<?php echo $path_prefix . $followup_index; ?>?search=<?php echo urlencode($case['an']); ?>">
                                     <div class="d-flex justify-content-between align-items-center">
                                         <div>
                                             <strong class="text-dark d-block mb-1"><?php echo htmlspecialchars($case['patient_name']); ?></strong>

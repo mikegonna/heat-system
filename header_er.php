@@ -8,13 +8,17 @@ if (!isset($path_prefix)) { $path_prefix = ""; }
 $root_path = $path_prefix != "" ? $path_prefix : "../"; 
 $db_paths = [$root_path . 'database/db_conn.php', 'database/db_conn.php', '../database/db_conn.php'];
 foreach ($db_paths as $path) { if (file_exists($path)) { require_once $path; break; } }
+require_once __DIR__ . '/database/fiscal_year.php';
+$fiscal_date_range = getFiscalDateRange($_GET);
 
 // --- [ดึงข้อมูลจริงจากฐานข้อมูล] ---
 $incoming_patients = [];
 if (isset($conn)) {
     // 💡 แก้ไข: นำเงื่อนไขเช็คเวลา w.admit_date >= e.recorded_at ออกเช่นเดียวกัน
     // ค้นหาเคส ER ที่ยังค้างประเมิน (ยังไม่สรุปผล) หรือ สั่ง Admit แล้วแต่แผนกยังไม่ได้รับเข้า
-    $sql = "SELECT * FROM data_import WHERE `status` = 0 ORDER BY data_date DESC";
+    $sql = "SELECT * FROM data_import WHERE `status` = 0
+            AND DATE(data_date) BETWEEN '{$fiscal_date_range['start_date']}' AND '{$fiscal_date_range['end_date']}'
+            ORDER BY data_date DESC";
             
     $result = $conn->query($sql);
     if($result) {

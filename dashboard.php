@@ -1,11 +1,10 @@
 <?php
-error_reporting(E_ALL);
-ini_set('display_errors', 1);
 session_start();
 date_default_timezone_set('Asia/Bangkok');
 
 if (!isset($_SESSION['user_id'])) { header("Location: login.php"); exit(); }
 require_once 'database/db_conn.php';
+require_once 'database/fiscal_year.php';
 
 // ---------------------------------------------------------
 // 1. Config & Theme
@@ -16,11 +15,12 @@ $current_user_role = $_SESSION['role'] ?? 'user';
 $is_er = ($current_user_name === 'er');
 $is_gp = ($current_user_name === 'gp');
 $is_med = ($current_user_name === 'med');
+$is_occ = ($current_user_name === 'occ');
 $is_pmr = ($current_user_name === 'pmr');
 $is_pcu   = ($current_user_name === 'pcu');
 $is_coc   = ($current_user_name === 'coc');
 $is_visit = ($is_pcu || $is_coc);
-$is_ward = (!$is_er && !$is_gp && !$is_med && !$is_pmr && !$is_visit && $current_user_role !== 'admin' && $current_user_name !== 'pct' && $current_user_name !== 'view');
+$is_ward = (!$is_er && !$is_gp && !$is_med && !$is_occ && !$is_pmr && !$is_visit && $current_user_role !== 'admin' && $current_user_name !== 'pct' && $current_user_name !== 'view');
 
 // ตั้งค่า Theme พื้นฐาน
 $theme_color = '#327c62'; $theme_bg = '#f4fbf7'; $theme_light = '#e8f6ef'; $header_file = 'header_ward.php'; $main_link = 'Ward/indexWard.php'; $title_text = 'หอผู้ป่วย ('.strtoupper($current_user_name).')';
@@ -31,6 +31,8 @@ if ($is_er) {
     $theme_color = '#059669'; $theme_bg = '#ecfdf5'; $theme_light = '#d1fae5'; $header_file = 'header_gp.php'; $main_link = 'GP/indexER.php'; $title_text = 'ห้องตรวจโรคทั่วไป'; 
 }elseif ($is_med) { 
     $theme_color = '#0284c7'; $theme_bg = '#f0f9ff'; $theme_light = '#e0f2fe'; $header_file = 'header_followup.php'; $main_link = 'MED/indexMED.php'; $title_text = 'ระบบติดตามอาการ (MED)'; 
+} elseif ($is_occ) {
+    $theme_color = '#0284c7'; $theme_bg = '#f0f9ff'; $theme_light = '#e0f2fe'; $header_file = 'header_followup.php'; $main_link = 'OCC/indexOCC.php'; $title_text = 'ระบบติดตามอาชีวเวชกรรม (OCC)';
 } elseif ($is_pmr) { 
     $theme_color = '#8b5cf6'; $theme_bg = '#f5f3ff'; $theme_light = '#ede9fe'; $header_file = 'header_rehab.php'; $main_link = 'PMR/indexPMR.php'; $title_text = 'เวชศาสตร์ฟื้นฟู (PMR)'; 
 } elseif ($is_pcu) { 
@@ -84,26 +86,9 @@ function getDxSeverityBadge($dx_text) {
 
 $total_wait = 0; $total_hist = 0;
 // ใช้ช่วงปีงบประมาณเดียวกับหน้า PCT: 1 ต.ค. ถึง 30 ก.ย. ของปีถัดไป
-$default_fiscal_start_year = (int)date('Y');
-$default_start_date = sprintf('%04d-10-01', $default_fiscal_start_year);
-$default_end_date = sprintf('%04d-09-30', $default_fiscal_start_year + 1);
-
-function sanitize_date($value, string $fallback): string {
-    if (!is_string($value) || !preg_match('/^(\d{4})-(\d{2})-(\d{2})$/', $value, $matches)) {
-        return $fallback;
-    }
-
-    return checkdate((int)$matches[2], (int)$matches[3], (int)$matches[1])
-        ? $value
-        : $fallback;
-}
-
-$start_date = array_key_exists('start_date', $_GET)
-    ? sanitize_date($_GET['start_date'], $default_start_date)
-    : $default_start_date;
-$end_date = array_key_exists('end_date', $_GET)
-    ? sanitize_date($_GET['end_date'], $default_end_date)
-    : $default_end_date;
+$fiscal_date_range = getFiscalDateRange($_GET);
+$start_date = $fiscal_date_range['start_date'];
+$end_date = $fiscal_date_range['end_date'];
 
 $severityCounts = ['Severe' => 0, 'Moderate' => 0, 'Other' => 0];
 $severityDetails = ['Severe' => [], 'Moderate' => [], 'Other' => []];
@@ -122,7 +107,7 @@ $fiscal_start_year = (int)date('Y', $fiscal_start_timestamp);
 if ((int)date('n', $fiscal_start_timestamp) < 10) {
     $fiscal_start_year--;
 }
-$fiscal_year_label = $fiscal_start_year + 544;
+$fiscal_year_label = $fiscal_date_range['year_label'];
 $months = ['ม.ค.', 'ก.พ.', 'มี.ค.', 'เม.ย.', 'พ.ค.', 'มิ.ย.', 'ก.ค.', 'ส.ค.', 'ก.ย.', 'ต.ค.', 'พ.ย.', 'ธ.ค.'];
 $fiscal_month_numbers = array_merge(range(10, 12), range(1, 9));
 $months_labels = [];
@@ -303,11 +288,12 @@ elseif ($is_gp) {
     $resHist = $conn->query($sqlHist);
 }
 // ===================================================================================
-// 🔵 Follow-up Logic (MED, PMR)
+// 🔵 Follow-up Logic (MED, OCC, PMR)
 // ===================================================================================
-elseif ($is_med || $is_pmr) {
+elseif ($is_med || $is_occ || $is_pmr) {
     $target_table = ''; $date_field = 'record_datetime';
     if($is_med) { $target_table = 'med_records'; }
+    elseif($is_occ) { $target_table = 'occ_records'; $date_field = 'record_date'; }
     elseif($is_pmr) { $target_table = 'pmr_records'; }
 
     if ($is_pmr) {
@@ -350,8 +336,9 @@ elseif ($is_med || $is_pmr) {
     $qHistCount = $conn->query("SELECT COUNT(DISTINCT r.id) as total $sqlHistBase");
     $total_hist = $qHistCount ? $qHistCount->fetch_assoc()['total'] : 0;
 
+    $recordDateAlias = $is_occ ? ', r.record_date AS record_datetime' : '';
     $sqlHist = "
-        SELECT r.*, w.an, w.discharge_date, c.hn, c.patient_name, c.age, c.person_type, c.department,
+        SELECT r.* $recordDateAlias, w.an, w.discharge_date, c.hn, c.patient_name, c.age, c.person_type, c.department,
                e.FstDx as er_dx, e.risk_factors,
                w.icu_diagnosis, w.final_diagnosis, w.initial_diagnosis, w.case_id
         $sqlHistBase
@@ -859,7 +846,7 @@ function getPatientTimeline($conn, $case_id) {
     return $html;
 }
 
-$is_multi_record = ($is_visit || $is_pmr || $is_med);
+$is_multi_record = ($is_visit || $is_pmr || $is_med || $is_occ);
 
 // -----------------------------------------------------------------------------------
 // 🧹 จัดกลุ่ม Person Type (บังคับโชว์ 4 รายการเสมอ แม้ว่า count จะเป็น 0)
@@ -1012,7 +999,7 @@ $month_json = htmlspecialchars(json_encode($stats_heat_by_month), ENT_QUOTES, 'U
             <div class="col-md-3"><div class="card kpi-card border-warning"><div class="card-body d-flex align-items-center"><div class="kpi-icon me-3" style="background:#fffbeb;color:#f59e0b;"><i class="fa-solid fa-clock"></i></div><div><div class="kpi-label" style="color:#f59e0b;">อยู่ระหว่างติดตาม</div><div class="kpi-value"><?php echo $kpi_tracked; ?> <small>ราย</small></div></div></div></div></div>
             <div class="col-md-3"><div class="card kpi-card border-success"><div class="card-body d-flex align-items-center"><div class="kpi-icon me-3" style="background:#f0fdf4;color:#16a34a;"><i class="fa-solid fa-clipboard-check"></i></div><div><div class="kpi-label" style="color:#16a34a;">สิ้นสุดการติดตาม</div><div class="kpi-value"><?php echo $kpi_done; ?> <small>ราย</small></div></div></div></div></div>
 
-        <?php elseif ($is_med || $is_pmr): ?>
+        <?php elseif ($is_med || $is_occ || $is_pmr): ?>
             <div class="col-md-3"><div class="card kpi-card"><div class="card-body d-flex align-items-center"><div class="kpi-icon me-3"><i class="fa-solid fa-users"></i></div><div><div class="kpi-label">ยอดผู้ป่วยที่ต้องดูแลทั้งหมด</div><div class="kpi-value"><?php echo $kpi_total; ?> <small>ราย</small></div></div></div></div></div>
             <div class="col-md-3"><div class="card kpi-card border-warning"><div class="card-body d-flex align-items-center"><div class="kpi-icon me-3"><i class="fa-solid fa-clock"></i></div><div><div class="kpi-label" style="color:#f59e0b;">รอติดตาม/เยี่ยม ครั้งแรก</div><div class="kpi-value"><?php echo $kpi_wait; ?> <small>ราย</small></div></div></div></div></div>
             <div class="col-md-3"><div class="card kpi-card"><div class="card-body d-flex align-items-center"><div class="kpi-icon me-3" style="background:#f0fdf4;color:#16a34a;"><i class="fa-solid fa-clipboard-check"></i></div><div><div class="kpi-label">ติดตาม/เยี่ยมแล้ว (สะสม)</div><div class="kpi-value"><?php echo $kpi_tracked; ?> <small>ราย</small></div></div></div></div></div>
@@ -1151,7 +1138,7 @@ $month_json = htmlspecialchars(json_encode($stats_heat_by_month), ENT_QUOTES, 'U
                             $wl_title = 'รายการผู้ป่วยแจ้งเตือน รอรับเข้า';
                             if ($is_er) $wl_title = 'รอ ER รับเข้า (รอข้อมูลแจ้งเตือน)';
                             if ($is_gp) $wl_title = 'รอ GP รับเข้า (รอข้อมูลแจ้งเตือน)';
-                            if ($is_med || $is_pmr || $is_visit) $wl_title = 'รายการผู้ป่วย รอติดตามครั้งแรก (Pending First Record)';
+                            if ($is_med || $is_occ || $is_pmr || $is_visit) $wl_title = 'รายการผู้ป่วย รอติดตามครั้งแรก (Pending First Record)';
                             echo $wl_title;
                         ?>
                     </h6>
@@ -1204,7 +1191,7 @@ $month_json = htmlspecialchars(json_encode($stats_heat_by_month), ENT_QUOTES, 'U
                         <thead class="bg-light sticky-top shadow-sm">
                             <tr>
                                 <th width="4%" class="text-center">#</th>
-                                <?php if($is_med || $is_pmr || $is_visit): ?>
+                                <?php if($is_med || $is_occ || $is_pmr || $is_visit): ?>
                                     <th width="12%">HN / AN</th>
                                     <th width="18%">ข้อมูลผู้ป่วย</th>
                                     <th width="15%">วินิจฉัยแรกรับ</th>
@@ -1233,7 +1220,7 @@ $month_json = htmlspecialchars(json_encode($stats_heat_by_month), ENT_QUOTES, 'U
                                     <tr>
                                         <td class="text-center text-muted fw-bold"><?php echo $offset_wait + $idx + 1; ?></td>
                                         
-                                        <?php if($is_med || $is_pmr || $is_visit): ?>
+                                        <?php if($is_med || $is_occ || $is_pmr || $is_visit): ?>
                                             <td>
                                                 <div class="hn-chip">HN: <?php echo htmlspecialchars($w['hn']); ?></div>
                                                 <?php if(!empty($w['an'])): ?>
@@ -1311,6 +1298,10 @@ $month_json = htmlspecialchars(json_encode($stats_heat_by_month), ENT_QUOTES, 'U
                                                     <a href="Visit/formVisit.php?hn=<?php echo urlencode($w['hn']) ;?>" class="btn btn-sm btn-theme text-white fw-bold rounded-pill px-3 shadow-sm w-100">
                                                         บันทึกข้อมูล
                                                     </a>
+                                                <?php elseif ($is_occ): ?>
+                                                    <a href="OCC/formOCC.php?hn=<?php echo urlencode($w['hn']); ?>&an=<?php echo urlencode($w['an']); ?>" class="btn btn-sm btn-theme text-white fw-bold rounded-pill px-3 shadow-sm w-100">
+                                                        บันทึกข้อมูล
+                                                    </a>
                                                 <?php else : ?>
                                                     <a href="MED/formMED.php?hn=<?php echo urlencode($w['hn']);?>&an=<?php echo urlencode($w['an']);?>" class="btn btn-sm btn-theme text-white fw-bold rounded-pill px-3 shadow-sm w-100">
                                                         บันทึกข้อมูล
@@ -1361,7 +1352,7 @@ $month_json = htmlspecialchars(json_encode($stats_heat_by_month), ENT_QUOTES, 'U
                                     </tr>
                                 <?php endforeach; ?>
                             <?php else: ?>
-                                <tr><td colspan="<?php echo ($is_med||$is_pmr||$is_visit) ? 7 : ($is_er || $is_gp ? 9 : 7); ?>" class="text-center py-5"><div class="text-muted"><i class="fa-solid fa-check-circle fs-2 text-success mb-2 opacity-50"></i><br>ไม่มีผู้ป่วยรอคิวในขณะนี้</div></td></tr>
+                                <tr><td colspan="<?php echo ($is_med||$is_occ||$is_pmr||$is_visit) ? 7 : ($is_er || $is_gp ? 9 : 7); ?>" class="text-center py-5"><div class="text-muted"><i class="fa-solid fa-check-circle fs-2 text-success mb-2 opacity-50"></i><br>ไม่มีผู้ป่วยรอคิวในขณะนี้</div></td></tr>
                             <?php endif; ?>
                         </tbody>
                     </table>
@@ -1419,7 +1410,7 @@ $month_json = htmlspecialchars(json_encode($stats_heat_by_month), ENT_QUOTES, 'U
                         <th width="10%">วันที่รับบริการ</th>
                         <th width="8%"><?php if($is_er){ echo 'HN';} else{ echo 'HN / AN';} ?></th>
                         <th width="15%">ชื่อผู้ป่วย</th>
-                        <?php $is_multi_record = ($is_visit || $is_pmr || $is_med); ?>
+                        <?php $is_multi_record = ($is_visit || $is_pmr || $is_med || $is_occ); ?>
                         <th width="<?php echo $is_multi_record ? '16%' : '14%'; ?>"><?php echo ($is_er || $is_gp)?'ข้อมูลรับเข้า':(($current_user_name === 'icu')?'ข้อมูลรับเข้า ICU':(($is_ward)?'วินิจฉัย/เหตุผล':'ผลการประเมิน')); ?></th>
                         <th width="12%" class="text-center">วินิจฉัยแรกรับ / สุดท้าย</th>
                         <th width="<?php echo $is_multi_record ? '8%' : '11%'; ?>" class="text-center">ไทม์ไลน์การรักษา</th>
@@ -1530,7 +1521,7 @@ $month_json = htmlspecialchars(json_encode($stats_heat_by_month), ENT_QUOTES, 'U
                                 }
                             } elseif ($is_pmr) {
                                 $followup_badge = "<div class='mt-2'><span class='badge bg-success text-white shadow-sm w-100 py-1' style='font-size:0.7rem;'><i class='fa-solid fa-check-double me-1'></i> สิ้นสุดฟื้นฟู</span></div>";
-                            } elseif ($is_med) {
+                            } elseif ($is_med || $is_occ) {
                                 $followup_badge = "<div class='mt-2'><span class='badge bg-success text-white shadow-sm w-100 py-1' style='font-size:0.7rem;'><i class='fa-solid fa-check-double me-1'></i> สิ้นสุดติดตาม</span></div>";
                             }
 
@@ -1635,6 +1626,33 @@ $month_json = htmlspecialchars(json_encode($stats_heat_by_month), ENT_QUOTES, 'U
                                 }
                                 $dx .= '</div>';
 
+                            } elseif($is_occ) {
+                                $time_col = '<div class="visit-date-badge shadow-sm"><i class="fa-solid fa-clock-rotate-left me-1"></i> OCC ล่าสุด:<br>'.date('d/m/Y', strtotime($h['record_datetime'])).'</div>';
+
+                                $an_hist = $conn->real_escape_string((string)$h['an']);
+                                $qRecords = $conn->query("SELECT occ_status, occ_note, record_date FROM occ_records WHERE an = '$an_hist' ORDER BY record_date ASC");
+                                $dx = '<div class="d-flex flex-column gap-1">';
+                                $v_c = 1;
+                                if($qRecords && $qRecords->num_rows > 0) {
+                                    while($v = $qRecords->fetch_assoc()) {
+                                        $status = !empty($v['occ_status']) ? htmlspecialchars($v['occ_status'], ENT_QUOTES, 'UTF-8') : '-';
+                                        $note = !empty($v['occ_note']) ? htmlspecialchars($v['occ_note'], ENT_QUOTES, 'UTF-8') : '-';
+                                        $v_date = date('d/m/y', strtotime($v['record_date']));
+
+                                        $dx .= "<div class='small text-dark pb-1 mb-1 border-bottom border-light'>";
+                                        $dx .= "<strong class='text-theme'>ครั้งที่ {$v_c} ({$v_date}):</strong><br>";
+                                        $dx .= "<span class='text-muted'>สถานะ OCC:</span> <span class='text-primary fw-bold'>{$status}</span>";
+                                        if($note !== '-') {
+                                            $dx .= " | <span class='text-muted'>บันทึก:</span> {$note}";
+                                        }
+                                        $dx .= "</div>";
+                                        $v_c++;
+                                    }
+                                } else {
+                                    $dx .= "<span class='text-muted small'>ไม่มีข้อมูลติดตาม OCC</span>";
+                                }
+                                $dx .= '</div>';
+
                             } else {
                                 $time_col = date('d/m/Y H:i', strtotime($h['record_datetime'] ?? $h['created_at'] ?? 'now'));
                                 $dx = "<span class='text-muted small'>ไม่มีข้อมูล</span>";
@@ -1666,7 +1684,7 @@ $month_json = htmlspecialchars(json_encode($stats_heat_by_month), ENT_QUOTES, 'U
                             <td>
                                 <div class="fw-bold text-dark"><?php echo $h['patient_name']; ?></div>
                                 <div class="small text-muted mt-1"><i class="fa-solid fa-sitemap me-1"></i> <?php echo $h['department'] ?? '-'; ?></div>
-                                <?php if($is_visit || $is_pmr || $is_med): ?>
+                                <?php if($is_visit || $is_pmr || $is_med || $is_occ): ?>
                                     <div class="badge bg-light text-dark border mt-1"><?php echo $h['person_type']; ?></div>
                                 <?php endif; ?>
                                 <?php

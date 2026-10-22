@@ -71,12 +71,12 @@ if (isset($_GET['autofill'])) {
 </head>
 <body>
 
-<?php $path_prefix = "../"; require_once '../header_er.php';?>
+<?php $path_prefix = "../"; require_once '../header_gp.php';?>
 
 <div class="form-page-wrap">
 
     <div class="form-hero">
-        <div class="hero-badge"><i class="fa-solid fa-circle-dot fa-beat" style="color:#86efac;"></i> ER · รพ.อานันทมหิดล</div>
+        <div class="hero-badge"><i class="fa-solid fa-circle-dot fa-beat" style="color:#86efac;"></i> GP · รพ.อานันทมหิดล</div>
         <h2><i class="fa-solid fa-file-medical me-2"></i>บันทึกข้อมูลการรักษาพยาบาล</h2>
         <p>ระบบบริหารจัดการโรคลมร้อน</p>
         <i class="fa-solid fa-heart-pulse hero-icon"></i>

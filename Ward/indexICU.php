@@ -18,6 +18,11 @@ if ($current_user_name !== 'icu' && $_SESSION['role'] !== 'admin') {
 }
 
 require_once '../database/db_conn.php';
+require_once '../database/fiscal_year.php';
+
+$fiscal_date_range = getFiscalDateRange($_GET);
+$start_date = $fiscal_date_range['start_date'];
+$end_date = $fiscal_date_range['end_date'];
 
 $user_id = $_SESSION['user_id'];
 $sqlUser = "SELECT * FROM users WHERE id = '$user_id'";
@@ -52,6 +57,8 @@ function getHeatSeverityClass($diagnosis) {
 // --- คำนวณจำนวนเคสรอรับเข้า ICU (Notifications) ---
 $filterConditionWait = " AND (e.admit_type = 'ICU' OR e.admit_type LIKE '%ICU%') ";
 $filterConditionActive = " AND w.admit_type LIKE '%ICU%' ";
+$filterConditionWait .= " AND DATE(e.recorded_at) BETWEEN '$start_date' AND '$end_date' ";
+$filterConditionActive .= " AND DATE(w.admit_date) BETWEEN '$start_date' AND '$end_date' ";
 
 // ดึงข้อมูลรอรับเข้า (รวมจาก ER และ รับย้าย) เพื่อมาทำ Pagination แบบ Array รวม
 $all_waitlist = [];
@@ -546,6 +553,22 @@ $total_active = $conn->query($sqlActiveCount)->fetch_assoc()['c'];
                 <a href="formWard.php" class="btn btn-icu-outline shadow-sm rounded-pill px-4"><i class="fa-solid fa-user-plus me-1"></i> รับใหม่ (Manual)</a>
             </div>
         </div>
+
+        <form method="GET" class="card border-0 shadow-sm mb-3 p-3">
+            <div class="row g-2 align-items-end">
+                <div class="col-md-3">
+                    <label class="form-label small text-muted fw-bold">ตั้งแต่วันที่</label>
+                    <input type="date" name="start_date" class="form-control" value="<?php echo htmlspecialchars($start_date); ?>">
+                </div>
+                <div class="col-md-3">
+                    <label class="form-label small text-muted fw-bold">ถึงวันที่</label>
+                    <input type="date" name="end_date" class="form-control" value="<?php echo htmlspecialchars($end_date); ?>">
+                </div>
+                <div class="col-md-3">
+                    <button type="submit" class="btn btn-icu-outline w-100">แสดงปีงบประมาณ พ.ศ. <?php echo $fiscal_date_range['year_label']; ?></button>
+                </div>
+            </div>
+        </form>
 
         <ul class="nav nav-tabs border-0" id="icuTab" role="tablist">
             <li class="nav-item">

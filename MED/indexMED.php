@@ -8,11 +8,13 @@ date_default_timezone_set('Asia/Bangkok');
 
 if (!isset($_SESSION['user_id'])) { header("Location: ../login.php"); exit(); }
 require_once '../database/db_conn.php';
+require_once '../database/fiscal_year.php';
 
 // --- FILTER & PAGINATION ---
 $search = isset($_GET['search']) ? $_GET['search'] : '';
-$start_date = isset($_GET['start_date']) ? $_GET['start_date'] : date('Y-m-d', strtotime('-90 days'));
-$end_date = isset($_GET['end_date']) ? $_GET['end_date'] : date('Y-m-d');
+$fiscal_date_range = getFiscalDateRange($_GET);
+$start_date = $fiscal_date_range['start_date'];
+$end_date = $fiscal_date_range['end_date'];
 $active_tab = isset($_GET['tab']) ? $_GET['tab'] : 'ongoing';
 
 // ตั้งค่าหน้า
@@ -27,9 +29,7 @@ $filterSQL = "";
 if (!empty($search)) {
     $filterSQL .= " AND (c.hn LIKE '%$search%' OR w.an LIKE '%$search%' OR c.patient_name LIKE '%$search%') ";
 }
-if (!empty($start_date) && !empty($end_date)) {
-    $filterSQL .= " AND DATE(COALESCE(w.discharge_date, w.admit_date)) BETWEEN '$start_date' AND '$end_date' ";
-}
+$filterSQL .= " AND DATE(COALESCE(w.discharge_date, w.admit_date)) BETWEEN '$start_date' AND '$end_date' ";
 
 // ---------------------------------------------------------------------------
 // Helper Function: สร้าง Timeline (ใหม่ - ล่าสุดอยู่บนสุด)
@@ -375,7 +375,7 @@ function getPaginationUrl($tab, $page_w, $page_h, $search, $start_date, $end_dat
             <small class="text-muted mt-2 d-block"><i class="fa-solid fa-user-doctor me-1"></i> ผู้ใช้งาน: คลินิกอายุรกรรม</small>
         </div>
         <div class="d-flex gap-2 align-items-center">
-            <span style="background-color: var(--v-primary); color: white;" class="badge rounded-pill px-4 py-2 fs-6 shadow-sm"><i class="fa-regular fa-calendar me-2"></i> <?php echo date('d M Y'); ?></span>
+            <span style="background-color: var(--v-primary); color: white;" class="badge rounded-pill px-4 py-2 fs-6 shadow-sm"><i class="fa-regular fa-calendar me-2"></i> ปีงบประมาณ พ.ศ. <?php echo $fiscal_date_range['year_label']; ?></span>
         </div>
     </div>
 

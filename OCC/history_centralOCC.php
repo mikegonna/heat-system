@@ -7,12 +7,12 @@ require_once '../database/db_conn.php';
 $current_user_name = strtolower(trim($_SESSION['name'] ?? ''));
 $path_prefix = "../"; 
 
-// 💡 ธีมสีฟ้า (MED / Follow-up)
+// ธีมติดตามอาชีวเวชกรรม
 $themeColor = '#0284c7'; 
 $themeDark  = '#0369a1'; 
 $themeLight = '#e0f2fe'; 
 $bgColor    = '#f0f9ff'; 
-$dashTitle  = 'MED / FOLLOW-UP DASHBOARD';
+$dashTitle  = 'OCC / FOLLOW-UP DASHBOARD';
 
 // เช็คการดึง Header ให้ตรงแผนก
 $headerFile = '../header_followup.php';
@@ -39,14 +39,14 @@ if (!empty($search)) {
     $whereSQL .= " AND (p.hn LIKE '%$search%' OR p.patient_name LIKE '%$search%' OR p.patient_id_card LIKE '%$search%') ";
 }
 if (!empty($search_date)) {
-    $whereSQL .= " AND DATE(m.record_datetime) = '$search_date' "; 
+    $whereSQL .= " AND DATE(m.record_date) = '$search_date' ";
 }
 
 // =========================================================
 // 🚀 ระบบ EXPORT TO EXCEL
 // =========================================================
 if (isset($_GET['export']) && $_GET['export'] == 'excel') {
-    $filename = "MED_Report_" . date('Ymd_His') . ".xls";
+    $filename = "OCC_Report_" . date('Ymd_His') . ".xls";
     
     header("Content-Type: application/vnd.ms-excel; charset=utf-8");
     header("Content-Disposition: attachment; filename=\"$filename\"");
@@ -56,7 +56,7 @@ if (isset($_GET['export']) && $_GET['export'] == 'excel') {
     $sqlExport = "
         SELECT p.hn, p.patient_id_card, p.patient_name, p.age, p.weight, p.height, p.bmi, p.person_type, p.department,
                m.*, w.admit_date, w.discharge_date, w.admit_type, w.initial_diagnosis, w.final_diagnosis
-        FROM med_records m
+        FROM occ_records m
         JOIN ward_details w ON m.an = w.an
         JOIN cases p ON w.case_id = p.id
         $whereSQL
@@ -85,9 +85,9 @@ if (isset($_GET['export']) && $_GET['export'] == 'excel') {
             echo '<td>' . htmlspecialchars((string)$row['admit_type']) . '</td>';
             echo '<td>' . htmlspecialchars((string)$row['discharge_date']) . '</td>';
             echo '<td>' . htmlspecialchars((string)$row['final_diagnosis']) . '</td>';
-            echo '<td>' . htmlspecialchars((string)$row['record_datetime']) . '</td>';
-            echo '<td>' . htmlspecialchars((string)$row['med_status']) . '</td>';
-            echo '<td>' . htmlspecialchars((string)$row['med_note']) . '</td>';
+            echo '<td>' . htmlspecialchars((string)$row['record_date']) . '</td>';
+            echo '<td>' . htmlspecialchars((string)$row['occ_status']) . '</td>';
+            echo '<td>' . htmlspecialchars((string)$row['occ_note']) . '</td>';
             echo '</tr>';
         }
     } else { echo '<tr><td colspan="13">ไม่มีข้อมูล</td></tr>'; }
@@ -97,7 +97,7 @@ if (isset($_GET['export']) && $_GET['export'] == 'excel') {
 
 // 💡 4. Query นับจำนวนทั้งหมด
 $sqlCount = "SELECT COUNT(DISTINCT m.an) as total 
-             FROM med_records m
+             FROM occ_records m
              JOIN ward_details w ON m.an = w.an
              JOIN cases p ON w.case_id = p.id 
              $whereSQL";
@@ -109,7 +109,7 @@ $totalPages = ceil($totalRows / $limit);
 // 💡 5. Query ดึงข้อมูลจริง (แยกตาม AN)
 $sql = "
     SELECT p.id as case_id, p.hn, p.patient_name, p.age, p.person_type, p.department, MAX(m.id) as max_id
-    FROM med_records m 
+    FROM occ_records m
     JOIN ward_details w ON m.an = w.an
     JOIN cases p ON w.case_id = p.id 
     $whereSQL 
@@ -197,7 +197,7 @@ function getPatientTimeline($conn, $case_id) {
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>ทะเบียนประวัติผู้ป่วยรวม (MED)</title>
+    <title>ทะเบียนประวัติผู้ป่วยรวม (OCC)</title>
     <link href="../bootstrap-5.0.2-dist/css/bootstrap.min.css" rel="stylesheet">
     <link href="https://fonts.googleapis.com/css2?family=Sarabun:wght@300;400;500;600;700&family=Prompt:wght@300;400;500;600;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
@@ -378,7 +378,7 @@ function getPatientTimeline($conn, $case_id) {
             <i class="fa-solid fa-circle-dot fa-beat" style="color:#fff;"></i>
             <?php echo $dashTitle; ?>
         </div>
-        <h3><i class="fa-solid fa-address-book me-2"></i>ทะเบียนประวัติผู้ป่วยรวม (MED)</h3>
+        <h3><i class="fa-solid fa-address-book me-2"></i>ทะเบียนประวัติผู้ป่วยรวม (OCC)</h3>
         <p>ระบบค้นหาและแสดงประวัติการติดตามอาการทั้งหมด (Follow-up Records)</p>
         <div class="hero-stat d-none d-md-block">
             <div class="stat-num"><?php echo number_format($totalRows); ?></div>
@@ -411,7 +411,7 @@ function getPatientTimeline($conn, $case_id) {
                     </div>
                     <?php if(!empty($search) || !empty($search_date)): ?>
                     <div class="col-md-auto">
-                        <a href="history_centralMed.php" class="btn-clear btn">
+                        <a href="history_centralOCC.php" class="btn-clear btn">
                             <i class="fa-solid fa-rotate-left"></i> ล้างค่า
                         </a>
                     </div>
@@ -460,54 +460,37 @@ function getPatientTimeline($conn, $case_id) {
                                 $case_id_curr = $row['case_id']; 
                                 $max_id = $row['max_id'];
                                 
-                                // 💡 1. ดึงข้อมูลบันทึก MED ล่าสุด
-                                $q_med = mysqli_query($conn, "SELECT * FROM med_records WHERE id = '$max_id'");
-                                $med_data = mysqli_fetch_assoc($q_med);
+                                // ดึงข้อมูล OCC ล่าสุด
+                                $q_occ = mysqli_query($conn, "SELECT * FROM occ_records WHERE id = '$max_id'");
+                                $occ_data = mysqli_fetch_assoc($q_occ);
                                 
                                 // 💡 2. ดึงข้อมูลจาก Ward ที่เกี่ยวข้อง
-                                $an = $med_data['an'];
+                                $an = $occ_data['an'];
                                 $q_ward = mysqli_query($conn, "SELECT initial_diagnosis, final_diagnosis, icu_diagnosis FROM ward_details WHERE an = '$an' ORDER BY id DESC LIMIT 1");
                                 $ward_data = mysqli_fetch_assoc($q_ward);
 
                                 $an_text = !empty($an) ? $an : '-';
-                                $follow_date = !empty($med_data['record_datetime']) ? $med_data['record_datetime'] : '';
+                                $follow_date = !empty($occ_data['record_date']) ? $occ_data['record_date'] : '';
 
-                                // สร้างกล่องข้อมูล MED
-                                $med_status = !empty($med_data['med_status']) ? $med_data['med_status'] : '-';
+                                // สร้างกล่องข้อมูล OCC
+                                $occ_status = !empty($occ_data['occ_status']) ? $occ_data['occ_status'] : '-';
                                 
                                 // แปลงค่าว่างเป็น -
                                 $val = fn($key) => htmlspecialchars(
-                                    !empty($med_data[$key]) ? $med_data[$key] : '-'
+                                    !empty($occ_data[$key]) ? $occ_data[$key] : '-'
                                 );
 
-                                $med_info_html = "
+                                $occ_info_html = "
                                     <div class='fw-bold mb-1' style='color: var(--theme-dark); font-size: 0.95rem;'>
                                         <i class='fa-solid fa-clipboard-list me-1'></i>
-                                        {$val('med_status')}
+                                        {$val('occ_status')}
                                     </div>";
 
-                                if (!empty($med_data['med_note'])) {
-                                    $labs = [
-                                        'CPK'         => 'cpk',
-                                        'BUN'         => 'bun',
-                                        'Cr'          => 'cr',
-                                        'Electrolyte' => 'eletroride'
-                                    ];
-
-                                    $lab_text = implode(', ', array_map(
-                                        fn($label, $key) => "$label: {$val($key)}",
-                                        array_keys($labs),
-                                        array_values($labs)
-                                    ));
-
-                                    $med_info_html .= "
+                                if (!empty($occ_data['occ_note'])) {
+                                    $occ_info_html .= "
                                         <div class='small text-muted'>
                                             <i class='fa-solid fa-pen text-secondary me-1'></i>
-                                            " . htmlspecialchars(mb_strimwidth($med_data['med_note'], 0, 45, '...')) . "
-                                            <span class='text-muted small' style='font-size: 0.75rem; display: block; margin-top: 2px;'>
-                                                <i class='fa-solid fa-flask-vial me-1'></i>
-                                                $lab_text
-                                            </span>
+                                            " . htmlspecialchars(mb_strimwidth($occ_data['occ_note'], 0, 45, '...')) . "
                                         </div>";
                                 }
 
@@ -533,13 +516,7 @@ function getPatientTimeline($conn, $case_id) {
                                 $journey_html = getPatientTimeline($conn, $row['case_id']);
 
                                 // 💡 5. สถานะติดตาม (เช็คว่าสิ้นสุดหรือยัง)
-                                if (stripos($med_status, 'สิ้นสุด') !== false || stripos($med_status, 'ครบ') !== false) {
-                                    $status_badge = '<span class="st-badge bg-success text-white"><i class="fa-solid fa-check-double me-1"></i> สิ้นสุดติดตาม</span>';
-                                } elseif (stripos($med_status, 'Dead') !== false || stripos($med_status, 'เสียชีวิต') !== false) {
-                                    $status_badge = '<span class="st-badge bg-dark text-white"><i class="fa-solid fa-book-skull me-1"></i> เสียชีวิต</span>';
-                                } else {
-                                    $status_badge = '<span class="st-badge bg-warning text-dark"><i class="fa-solid fa-spinner me-1"></i> กำลังติดตาม</span>';
-                                }
+                                $status_badge = '<span class="st-badge bg-success text-white"><i class="fa-solid fa-check-circle me-1"></i> บันทึก OCC แล้ว</span>';
 
                                 $view_full_history = "../view_patient_full_history.php?hn=" . urlencode((string)$row['hn']);
                             ?>
@@ -566,7 +543,7 @@ function getPatientTimeline($conn, $case_id) {
                                 </td>
                                 <td data-label="ผลประเมินล่าสุด" class="align-middle">
                                     <div class="bg-white p-2 rounded border shadow-sm">
-                                        <?php echo $med_info_html; ?>
+                                        <?php echo $occ_info_html; ?>
                                     </div>
                                 </td>
                                 <td data-label="วินิจฉัยสุดท้าย" class="text-center align-middle">

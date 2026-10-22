@@ -5,6 +5,9 @@ if (!isset($path_prefix)) { $path_prefix = ""; }
 $root_path = $path_prefix != "" ? $path_prefix : "../"; 
 $db_paths = [$root_path . 'database/db_conn.php', 'database/db_conn.php', '../database/db_conn.php'];
 foreach ($db_paths as $path) { if (file_exists($path)) { require_once $path; break; } }
+require_once __DIR__ . '/database/fiscal_year.php';
+$fiscal_date_range = getFiscalDateRange($_GET);
+$visit_service = strtolower(trim($_SESSION['name'] ?? '')) === 'coc' ? 'COC' : 'PCU';
 
 // 💡 ดึงเคสรอเยี่ยมบ้าน (เฉพาะที่จำหน่ายแล้วเท่านั้น)
 $incoming_visit = [];
@@ -21,6 +24,7 @@ if (isset($conn)) {
             IFNULL(e.disposition, '') NOT IN ('Dead', 'Refer')
             AND IFNULL(w.discharge_status, '') NOT IN ('Dead', 'Refer')
             AND (e.id IS NOT NULL OR w.id IS NOT NULL)
+            AND DATE(COALESCE(w.discharge_date, e.recorded_at, c.created_at)) BETWEEN '{$fiscal_date_range['start_date']}' AND '{$fiscal_date_range['end_date']}'
             AND (
                 (w.id IS NOT NULL AND w.status = 'Discharged')
                 OR (w.id IS NULL AND e.id IS NOT NULL AND e.disposition = 'Discharge')
@@ -200,7 +204,7 @@ $visit_count = count($incoming_visit);
             <img src="<?php echo $path_prefix; ?>img/AnanLogo.png" width="50" alt="Logo">
         </div>
         <div class="d-flex flex-column text-white">
-            <span class="fw-bolder" style="font-size: 1.25rem; letter-spacing: 0.5px; text-shadow: 0 2px 4px rgba(0,0,0,0.2);">PCU / COC</span>
+            <span class="fw-bolder" style="font-size: 1.25rem; letter-spacing: 0.5px; text-shadow: 0 2px 4px rgba(0,0,0,0.2);"><?php echo $visit_service; ?></span>
             <span style="font-size: 0.75rem; opacity: 0.9; font-weight: 300;">ระบบติดตามเยี่ยมบ้าน</span>
         </div>
     </a>
@@ -241,7 +245,7 @@ $visit_count = count($incoming_visit);
                 </a>
                 <ul class="dropdown-menu dropdown-menu-end dropdown-menu-modern noti-dropdown">
                     <li class="p-3 border-bottom bg-light d-flex justify-content-between align-items-center">
-                        <h6 class="fw-bold mb-0 text-dark"><i class="fa-solid fa-house-user text-theme me-2"></i>รายการที่ต้องติดตาม (PCU)</h6>
+                        <h6 class="fw-bold mb-0 text-dark"><i class="fa-solid fa-house-user text-theme me-2"></i>รายการที่ต้องติดตาม (<?php echo $visit_service; ?>)</h6>
                         <span class="badge bg-warning text-dark rounded-pill px-2 py-1"><?php echo $visit_count; ?></span>
                     </li>
                     <div class="custom-scrollbar" style="max-height: 350px; overflow-y: auto;">

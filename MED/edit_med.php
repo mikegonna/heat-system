@@ -21,7 +21,7 @@ $row = $result->fetch_assoc();
     <style>body{font-family:'Sarabun',sans-serif;background:#f0f2f5;}</style>
 </head>
 <body>
-    <?php require_once '../header_pct.php'; ?>
+    <?php $path_prefix = "../"; require_once '../header_followup.php'; ?>
     <div class="container py-5">
         <div class="card shadow-sm">
             <div class="card-header bg-info text-white"><h5>แก้ไขข้อมูล MED</h5></div>
