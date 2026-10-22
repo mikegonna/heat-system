@@ -60,6 +60,8 @@ if (isset($_POST['login'])) {
                 header("Location: PCT/indexPCT.php");
             } elseif ($row['name'] == 'pct') {
                 header("Location: PCT/indexPCT.php");
+            } elseif ($row['name'] == 'occ') {
+                header("Location: dashboard.php");
             }
             exit(); 
         } else {

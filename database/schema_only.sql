@@ -156,6 +156,24 @@ CREATE TABLE `med_records` (
   KEY `an` (`an`)
 ) ENGINE=InnoDB AUTO_INCREMENT=45 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 /*!40101 SET character_set_client = @saved_cs_client */;
+DROP TABLE IF EXISTS `occ_records`;
+/*!40101 SET @saved_cs_client     = @@character_set_client */;
+/*!40101 SET character_set_client = utf8 */;
+CREATE TABLE `occ_records` (
+  `id` int(11) NOT NULL AUTO_INCREMENT,
+  `hn` varchar(50) NOT NULL,
+  `an` varchar(50) NOT NULL,
+  `fu_date` datetime DEFAULT NULL,
+  `occ_status` varchar(255) DEFAULT NULL,
+  `occ_note` text DEFAULT NULL,
+  `recorder_name` varchar(255) NOT NULL,
+  `record_date` datetime NOT NULL,
+  `created_at` timestamp NOT NULL DEFAULT current_timestamp(),
+  PRIMARY KEY (`id`),
+  KEY `hn` (`hn`),
+  KEY `an` (`an`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+/*!40101 SET character_set_client = @saved_cs_client */;
 DROP TABLE IF EXISTS `pmr_records`;
 /*!40101 SET @saved_cs_client     = @@character_set_client */;
 /*!40101 SET character_set_client = utf8 */;
