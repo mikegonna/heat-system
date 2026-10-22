@@ -18,6 +18,24 @@ function normalizeOccDateTime($value)
     return $date->format('Y-m-d H:i:s');
 }
 
+function getOccFollowupStatus($followupDate, $dischargeDate)
+{
+    $followup = normalizeOccDateTime($followupDate);
+    if (!$followup || !is_string($dischargeDate) || $dischargeDate === '') {
+        return null;
+    }
+
+    $dischargeTimestamp = strtotime($dischargeDate);
+    $followupTimestamp = strtotime($followup);
+    if ($dischargeTimestamp === false || $followupTimestamp < $dischargeTimestamp) {
+        return null;
+    }
+
+    return $followupTimestamp - $dischargeTimestamp <= 14 * 24 * 60 * 60
+        ? 'มาตรงนัด'
+        : 'มาไม่ตรงนัด';
+}
+
 function canEditOccRecords()
 {
     $userName = strtolower((string)($_SESSION['name'] ?? ''));

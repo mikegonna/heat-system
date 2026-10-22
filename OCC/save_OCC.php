@@ -18,12 +18,11 @@ $hn = is_string($_POST['hn'] ?? null) ? trim($_POST['hn']) : '';
 $an = is_string($_POST['an'] ?? null) ? trim($_POST['an']) : '';
 $fuDate = normalizeOccDateTime($_POST['fu_date'] ?? null);
 $recordDate = normalizeOccDateTime($_POST['record_date'] ?? null);
-$status = is_string($_POST['occ_status'] ?? null) ? trim($_POST['occ_status']) : '';
 $note = is_string($_POST['occ_note'] ?? null) ? trim($_POST['occ_note']) : '';
 $recorderName = is_string($_POST['recorder_name'] ?? null) ? trim($_POST['recorder_name']) : '';
 
 $redirect = 'Location: formOCC.php?hn=' . urlencode($hn) . '&an=' . urlencode($an);
-if (!isset($_POST['submit_occ']) || $hn === '' || $an === '' || !$fuDate || !$recordDate || $status === '' || $recorderName === '') {
+if (!isset($_POST['submit_occ']) || $hn === '' || $an === '' || !$fuDate || !$recordDate || $recorderName === '') {
     $_SESSION['statusType'] = 'error';
     $_SESSION['statusMsg'] = 'กรุณากรอกข้อมูล OCC ที่จำเป็นให้ครบถ้วนและตรวจสอบรูปแบบวันที่';
     header($redirect);
@@ -31,7 +30,7 @@ if (!isset($_POST['submit_occ']) || $hn === '' || $an === '' || !$fuDate || !$re
 }
 
 $caseStmt = $conn->prepare(
-    'SELECT c.status_case
+    'SELECT c.status_case, w.discharge_date
      FROM cases c
      JOIN ward_details w ON w.case_id = c.id
      WHERE c.hn = ? AND w.an = ?
@@ -56,6 +55,14 @@ $caseStmt->close();
 if (!$case || $case['status_case'] === 'Closed') {
     $_SESSION['statusType'] = 'error';
     $_SESSION['statusMsg'] = !$case ? 'ไม่พบเคสของผู้ป่วยตาม HN และ AN ที่ระบุ' : 'ไม่สามารถบันทึกข้อมูลได้ เนื่องจากเคสถูกปิดแล้ว';
+    header($redirect);
+    exit();
+}
+
+$status = getOccFollowupStatus($_POST['fu_date'] ?? null, $case['discharge_date'] ?? null);
+if (!$status) {
+    $_SESSION['statusType'] = 'error';
+    $_SESSION['statusMsg'] = 'กรุณาระบุวันที่ Follow-up ที่ไม่ก่อนวันจำหน่าย และตรวจสอบวันจำหน่ายของเคส';
     header($redirect);
     exit();
 }
