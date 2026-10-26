@@ -8,15 +8,17 @@ foreach ($db_paths as $path) { if (file_exists($path)) { require_once $path; bre
 require_once __DIR__ . '/database/fiscal_year.php';
 $fiscal_date_range = getFiscalDateRange($_GET);
 
-// ดึงเคสรอรับเข้า (PMR) ที่ถูกส่งต่อมาจาก MED
+// ดึงเคสรอรับเข้า PMR ที่ยังไม่มีบันทึกฟื้นฟู
 $incoming_pmr = [];
 if (isset($conn)) {
     $sql = "SELECT w.an, c.patient_name, w.discharge_date, w.discharge_detail
             FROM ward_details w
             JOIN cases c ON w.case_id = c.id
             WHERE w.status = 'Discharged'
-            AND DATE(w.discharge_date) BETWEEN '{$fiscal_date_range['start_date']}' AND '{$fiscal_date_range['end_date']}'
-            AND EXISTS (SELECT 1 FROM med_records m WHERE m.an = w.an AND m.med_status LIKE '%นัดพบแพทย์เวชศาสตร์ฟื้นฟู%')
+            AND DATE(COALESCE(w.discharge_date, w.admit_date)) BETWEEN '{$fiscal_date_range['start_date']}' AND '{$fiscal_date_range['end_date']}'
+            AND EXISTS (SELECT 1 FROM ward_progress_notes wpn
+                        WHERE wpn.ward_detail_id = w.id
+                        AND wpn.treatment_result LIKE 'Discharge%')
             AND w.an NOT IN (SELECT an FROM pmr_records)
             ORDER BY w.discharge_date DESC";
     $result = $conn->query($sql);

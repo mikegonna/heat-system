@@ -26,8 +26,6 @@ if (!empty($search)) {
     $filterSQL .= " AND (c.hn LIKE '%$search%' OR w.an LIKE '%$search%' OR c.patient_name LIKE '%$search%') ";
 }
 $filterSQL .= " AND DATE(COALESCE(w.discharge_date, w.admit_date)) BETWEEN '$start_date' AND '$end_date' ";
-$severeDiagnosisSQL = "COALESCE(NULLIF(w.final_diagnosis, ''), NULLIF(w.icu_diagnosis, ''), NULLIF(w.initial_diagnosis, ''))
-                       REGEXP 'Heat Stroke|Heat Exhaustion|Rhabdomyolysis[[:space:]]*[(]CPK[[:space:]]*>[[:space:]]*1,?000[)]'";
 
 // ---------------------------------------------------------------------------
 // Helper Function: สร้าง Timeline (ใหม่ - ล่าสุดอยู่บนสุด)
@@ -107,12 +105,9 @@ $baseWait = "FROM ward_details w
              JOIN cases c ON w.case_id = c.id
              LEFT JOIN er_details e ON e.id = (SELECT MAX(id) FROM er_details WHERE case_id = c.id)
              WHERE w.status = 'Discharged' 
-             AND $severeDiagnosisSQL
-             AND (SELECT m.pmr FROM med_records m
-                  WHERE m.an = w.an
-                  ORDER BY m.record_datetime DESC, m.id DESC
-                  LIMIT 1) = '1'
-             AND EXISTS (SELECT 1 FROM occ_records o WHERE o.an = w.an)
+             AND EXISTS (SELECT 1 FROM ward_progress_notes wpn
+                         WHERE wpn.ward_detail_id = w.id
+                         AND wpn.treatment_result LIKE 'Discharge%')
              AND (SELECT COUNT(*) FROM pmr_records pr WHERE pr.an = w.an) = 0
              $filterSQL";
 
@@ -138,7 +133,6 @@ $baseHist = "FROM ward_details w
              JOIN cases c ON w.case_id = c.id
              LEFT JOIN er_details e ON e.id = (SELECT MAX(id) FROM er_details WHERE case_id = c.id)
              WHERE w.status = 'Discharged'
-             AND $severeDiagnosisSQL
              AND (SELECT COUNT(*) FROM pmr_records pr WHERE pr.an = w.an) > 0
              $filterSQL";
 

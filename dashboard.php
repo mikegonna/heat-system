@@ -295,14 +295,14 @@ elseif ($is_med || $is_occ || $is_pmr) {
     if($is_med) { $target_table = 'med_records'; }
     elseif($is_occ) { $target_table = 'occ_records'; $date_field = 'record_date'; }
     elseif($is_pmr) { $target_table = 'pmr_records'; }
+    $ward_date_field = ($is_occ || $is_pmr) ? 'COALESCE(w.discharge_date, w.admit_date)' : 'w.admit_date';
+    $history_date_condition = ($is_occ || $is_pmr)
+        ? 'DATE(COALESCE(w.discharge_date, w.admit_date))'
+        : "DATE(r.$date_field)";
 
-    if ($is_pmr) {
-        $base_cond = "w.status = 'Discharged' AND EXISTS (SELECT 1 FROM med_records m WHERE m.an = w.an AND m.med_status LIKE '%นัดพบแพทย์เวชศาสตร์ฟื้นฟู%')";
-    } else {
-        $base_cond = "w.status = 'Discharged' AND EXISTS (SELECT 1 FROM ward_progress_notes wpn WHERE wpn.ward_detail_id = w.id AND wpn.treatment_result LIKE 'Discharge%')";
-    }
+    $base_cond = "w.status = 'Discharged' AND EXISTS (SELECT 1 FROM ward_progress_notes wpn WHERE wpn.ward_detail_id = w.id AND wpn.treatment_result LIKE 'Discharge%')";
 
-    $sqlWaitBase = "FROM ward_details w JOIN cases c ON w.case_id = c.id LEFT JOIN er_details e ON w.case_id = e.case_id WHERE $base_cond AND DATE(w.admit_date) BETWEEN '$start_date' AND '$end_date' AND w.an NOT IN (SELECT an FROM $target_table)";
+    $sqlWaitBase = "FROM ward_details w JOIN cases c ON w.case_id = c.id LEFT JOIN er_details e ON w.case_id = e.case_id WHERE $base_cond AND DATE($ward_date_field) BETWEEN '$start_date' AND '$end_date' AND w.an NOT IN (SELECT an FROM $target_table)";
     
     // 💡 SAFEGUARD: ป้องกัน 500 Error
     $qWaitCount = $conn->query("SELECT COUNT(DISTINCT w.id) as c $sqlWaitBase");
@@ -317,7 +317,7 @@ elseif ($is_med || $is_occ || $is_pmr) {
     $resW = $conn->query($sqlW);
     if($resW) while($row = $resW->fetch_assoc()) $waitlist[] = $row;
 
-    $qTracked = $conn->query("SELECT COUNT(DISTINCT r.an) as c FROM $target_table r JOIN ward_details w ON r.an = w.an WHERE DATE(w.admit_date) BETWEEN '$start_date' AND '$end_date'");
+    $qTracked = $conn->query("SELECT COUNT(DISTINCT r.an) as c FROM $target_table r JOIN ward_details w ON r.an = w.an WHERE DATE($ward_date_field) BETWEEN '$start_date' AND '$end_date'");
     $kpi_tracked = $qTracked ? $qTracked->fetch_assoc()['c'] : 0;
     $kpi_total = $kpi_wait + $kpi_tracked;
 
@@ -329,7 +329,7 @@ elseif ($is_med || $is_occ || $is_pmr) {
         JOIN (
             SELECT an, MAX(id) as max_id FROM $target_table GROUP BY an
         ) as latest_r ON r.id = latest_r.max_id
-        WHERE DATE(r.$date_field) BETWEEN '$start_date' AND '$end_date'
+        WHERE $history_date_condition BETWEEN '$start_date' AND '$end_date'
     ";
     
     // 💡 SAFEGUARD: ป้องกัน 500 Error
@@ -347,7 +347,7 @@ elseif ($is_med || $is_occ || $is_pmr) {
     ";
     $resHist = $conn->query($sqlHist);
 
-    $sqlPerson = "SELECT c.person_type, COUNT(DISTINCT w.an) as count FROM ward_details w JOIN cases c ON w.case_id = c.id WHERE $base_cond AND DATE(w.admit_date) BETWEEN '$start_date' AND '$end_date' GROUP BY c.person_type";
+    $sqlPerson = "SELECT c.person_type, COUNT(DISTINCT w.an) as count FROM ward_details w JOIN cases c ON w.case_id = c.id WHERE $base_cond AND DATE($ward_date_field) BETWEEN '$start_date' AND '$end_date' GROUP BY c.person_type";
     $resPerson = $conn->query($sqlPerson);
     if($resPerson) while ($r = $resPerson->fetch_assoc()) $personTypeCounts[!empty($r['person_type']) ? $r['person_type'] : 'ไม่ระบุ'] = $r['count'];
 
@@ -357,7 +357,7 @@ elseif ($is_med || $is_occ || $is_pmr) {
                     FROM ward_details w
                     JOIN cases c ON w.case_id = c.id
                     WHERE $base_cond
-                    AND DATE(w.admit_date) BETWEEN '$start_date' AND '$end_date'
+                    AND DATE($ward_date_field) BETWEEN '$start_date' AND '$end_date'
                 ";
 
     $sqlSev = "
@@ -366,7 +366,7 @@ elseif ($is_med || $is_occ || $is_pmr) {
             w.icu_diagnosis, 
             w.initial_diagnosis
         ) as dx,
-        w.admit_date as pt_date
+        w.discharge_date as pt_date
         $sqlWardBase
         AND w.id = (
             SELECT MAX(w_sub.id)
@@ -1300,6 +1300,10 @@ $month_json = htmlspecialchars(json_encode($stats_heat_by_month), ENT_QUOTES, 'U
                                                     </a>
                                                 <?php elseif ($is_occ): ?>
                                                     <a href="OCC/formOCC.php?hn=<?php echo urlencode($w['hn']); ?>&an=<?php echo urlencode($w['an']); ?>" class="btn btn-sm btn-theme text-white fw-bold rounded-pill px-3 shadow-sm w-100">
+                                                        บันทึกข้อมูล
+                                                    </a>
+                                                <?php elseif ($is_pmr): ?>
+                                                    <a href="PMR/formPMR.php?hn=<?php echo urlencode($w['hn']); ?>&an=<?php echo urlencode($w['an']); ?>" class="btn btn-sm btn-theme text-white fw-bold rounded-pill px-3 shadow-sm w-100">
                                                         บันทึกข้อมูล
                                                     </a>
                                                 <?php else : ?>
