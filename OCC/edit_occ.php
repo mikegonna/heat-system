@@ -52,6 +52,7 @@ if (!$record) {
 $isCaseClosed = $record['status_case'] === 'Closed';
 $isModalRequest = ($_GET['modal'] ?? '') === '1';
 $backUrl = 'formOCC.php?hn=' . urlencode($record['hn']) . '&an=' . urlencode($record['an']);
+$updateUrl = rtrim(str_replace('\\', '/', dirname($_SERVER['SCRIPT_NAME'] ?? '/OCC/edit_occ.php')), '/') . '/update_occ.php';
 ?>
 <?php if (!$isModalRequest): ?>
 <!DOCTYPE html>
@@ -89,11 +90,11 @@ $backUrl = 'formOCC.php?hn=' . urlencode($record['hn']) . '&an=' . urlencode($re
             <?php if ($isCaseClosed): ?>
                 <div class="alert alert-secondary"><i class="fa-solid fa-lock me-2"></i>เคสถูกปิดแล้ว ไม่สามารถแก้ไขข้อมูลได้</div>
             <?php endif; ?>
-            <form action="update_occ.php" method="POST" data-occ-edit-form>
+            <form action="<?php echo htmlspecialchars($updateUrl, ENT_QUOTES, 'UTF-8'); ?>" method="POST" data-occ-edit-form>
     <?php else: ?>
-    <form action="update_occ.php" method="POST" data-occ-edit-form class="d-flex flex-column flex-grow-1">
+    <form action="<?php echo htmlspecialchars($updateUrl, ENT_QUOTES, 'UTF-8'); ?>" method="POST" data-occ-edit-form class="d-flex flex-column flex-grow-1">
         <div class="modal-body">
-            <div data-occ-edit-message></div>
+            <div data-record-edit-message></div>
             <?php if ($isCaseClosed): ?>
                 <div class="alert alert-secondary"><i class="fa-solid fa-lock me-2"></i>เคสถูกปิดแล้ว ไม่สามารถแก้ไขข้อมูลได้</div>
             <?php endif; ?>

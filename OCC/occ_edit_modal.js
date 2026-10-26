@@ -1,23 +1,24 @@
-(function () {
-    const modalElement = document.getElementById('occEditModal');
+window.initRecordEditModal = function (options) {
+    const modalElement = document.getElementById(options.modalId);
     if (!modalElement || typeof bootstrap === 'undefined') return;
 
     const modal = new bootstrap.Modal(modalElement);
     const modalContent = modalElement.querySelector('.modal-content');
 
     document.addEventListener('click', async function (event) {
-        const link = event.target.closest('[data-occ-edit-url]');
+        const link = event.target.closest(options.linkSelector);
         if (!link) return;
 
         event.preventDefault();
+        const editUrl = link.getAttribute(options.urlAttribute);
         modalContent.innerHTML = '<div class="modal-body text-center p-5"><div class="spinner-border text-primary" role="status"><span class="visually-hidden">กำลังโหลด...</span></div></div>';
         modal.show();
 
         try {
-            const separator = link.dataset.occEditUrl.includes('?') ? '&' : '?';
-            const response = await fetch(link.dataset.occEditUrl + separator + 'modal=1');
+            const separator = editUrl.includes('?') ? '&' : '?';
+            const response = await fetch(editUrl + separator + 'modal=1');
             const html = await response.text();
-            if (!response.ok) throw new Error(html || 'ไม่สามารถโหลดแบบฟอร์มแก้ไข OCC ได้');
+            if (!response.ok) throw new Error(html || 'ไม่สามารถโหลดแบบฟอร์มแก้ไขได้');
             modalContent.innerHTML = html;
             if (typeof window.initOccFollowupStatus === 'function') {
                 window.initOccFollowupStatus(modalContent);
@@ -29,18 +30,18 @@
     });
 
     modalElement.addEventListener('submit', async function (event) {
-        const form = event.target.closest('[data-occ-edit-form]');
+        const form = event.target.closest(options.formSelector);
         if (!form) return;
 
         event.preventDefault();
         const submitButton = form.querySelector('button[type="submit"]');
-        const message = modalElement.querySelector('[data-occ-edit-message]');
+        const message = modalElement.querySelector('[data-record-edit-message]');
         if (submitButton) submitButton.disabled = true;
         if (message) message.innerHTML = '';
 
         try {
             const formData = new FormData(form);
-            formData.append('update_occ', '1');
+            formData.append(options.submitName, '1');
             const response = await fetch(form.action, {
                 method: 'POST',
                 body: formData,
@@ -49,8 +50,14 @@
                     'Accept': 'application/json'
                 }
             });
-            const result = await response.json();
-            if (!response.ok || !result.success) throw new Error(result.message || 'ไม่สามารถบันทึกการแก้ไข OCC ได้');
+            const responseText = await response.text();
+            let result;
+            try {
+                result = JSON.parse(responseText);
+            } catch (parseError) {
+                throw new Error('เซิร์ฟเวอร์ตอบกลับไม่ใช่ JSON (HTTP ' + response.status + ') กรุณาตรวจสอบ URL และสถานะการเข้าสู่ระบบ');
+            }
+            if (!response.ok || !result.success) throw new Error(result.message || 'ไม่สามารถบันทึกการแก้ไขได้');
 
             modal.hide();
             window.location.reload();
@@ -62,4 +69,12 @@
             if (submitButton) submitButton.disabled = false;
         }
     });
-})();
+};
+
+window.initRecordEditModal({
+    modalId: 'occEditModal',
+    linkSelector: '[data-occ-edit-url]',
+    urlAttribute: 'data-occ-edit-url',
+    formSelector: '[data-occ-edit-form]',
+    submitName: 'update_occ'
+});

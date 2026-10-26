@@ -39,6 +39,10 @@
     font-size: 1.5rem;
 }
 
+.rte-options .disposition-option label {
+    cursor: pointer;
+}
+
 .disposition-option input:checked + label {
     border-color: #059669;
     color: #fff;

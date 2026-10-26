@@ -4,9 +4,10 @@ date_default_timezone_set('Asia/Bangkok');
 
 if (!isset($_SESSION['user_id'])) { header("Location: ../login.php"); exit(); }
 require_once '../database/db_conn.php';
+require_once __DIR__ . '/pmr_helpers.php';
 
-$hn = isset($_GET['hn']) ? $_GET['hn'] : '';
-$an = isset($_GET['an']) ? $_GET['an'] : '';
+$hn = is_string($_GET['hn'] ?? null) ? trim($_GET['hn']) : '';
+$an = is_string($_GET['an'] ?? null) ? trim($_GET['an']) : '';
 
 $patient = null;
 $history = null;
@@ -17,7 +18,7 @@ if ($hn && $an) {
     // ดึงข้อมูลผู้ป่วย
     $sqlPt = "SELECT c.patient_name, c.age, c.department, c.congenital_disease, c.phone, c.person_type,
                      c.weight, c.height,
-                     w.discharge_date, w.final_diagnosis, w.initial_diagnosis, w.first_visit_date, w.status,
+                     c.status_case, w.discharge_date, w.final_diagnosis, w.initial_diagnosis, w.first_visit_date, w.status,
                      er.cause_factor, er.risk_factors,
                      (SELECT doctor_name FROM ward_progress_notes wp WHERE wp.ward_detail_id = w.id ORDER BY wp.note_datetime DESC LIMIT 1) AS doctor_name,
                      (SELECT details FROM ward_progress_notes wp WHERE wp.ward_detail_id = w.id ORDER BY wp.note_datetime DESC LIMIT 1) AS last_note_details
@@ -43,6 +44,10 @@ if ($hn && $an) {
 }
 
 $is_discharged = ($patient && $patient['status'] === 'Discharged');
+$is_case_closed = $patient && $patient['status_case'] === 'Closed';
+$can_edit_records = canEditPmrRecords();
+$is_read_only = $is_case_closed || !$can_edit_records;
+$record_datetime = date('Y-m-d\TH:i');
 
 // คำนวณ BMI
 $case_bmi = "-";
@@ -57,6 +62,7 @@ if (!empty($patient['weight']) && !empty($patient['height'])) {
     <meta charset="UTF-8">
     <title>บันทึกเวชศาสตร์ฟื้นฟู (PMR)</title>
     <link href="../bootstrap-5.0.2-dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="../OCC/occ_status.css" rel="stylesheet">
     <link href="https://fonts.googleapis.com/css2?family=Sarabun:wght@300;400;500;600&family=Prompt:wght@300;400;500;600;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
@@ -136,6 +142,15 @@ if (!empty($patient['weight']) && !empty($patient['height'])) {
                 (ยังไม่ใช่ Discharged)
             </div>
         <?php endif; ?>
+        <?php if ($is_case_closed): ?>
+            <div class="alert alert-secondary text-center mb-4 shadow-sm rounded-3">
+                <i class="fa-solid fa-lock me-2"></i><strong>เคสถูกปิดแล้ว:</strong> ไม่สามารถเพิ่มหรือแก้ไขข้อมูลได้
+            </div>
+        <?php elseif (!$can_edit_records): ?>
+            <div class="alert alert-warning text-center mb-4 shadow-sm rounded-3">
+                <i class="fa-solid fa-lock me-2"></i><strong>คำเตือน:</strong> บัญชีนี้ไม่มีสิทธิ์บันทึกหรือแก้ไขข้อมูล PMR
+            </div>
+        <?php endif; ?>
 
         <!-- 1. Patient Header Info -->
         <div class="patient-info-box d-flex flex-column flex-md-row justify-content-between align-items-md-center gap-3">
@@ -194,27 +209,46 @@ if (!empty($patient['weight']) && !empty($patient['height'])) {
                                         <?php echo date('d/m/Y', strtotime($row['record_datetime'])); ?>
                                         <small class="text-muted ms-2 fw-normal"><i class="fa-regular fa-clock me-1"></i><?php echo date('H:i', strtotime($row['record_datetime'])); ?> น.</small>
                                     </div>
-                                    <div class="card mt-2 border-0 shadow-sm rounded-3">
-                                        <div class="card-body p-3">
-                                            <div class="mb-2">
-                                                <span class="badge bg-theme-light text-theme border border-theme w-100 text-start px-3 py-2 fs-6" style="white-space: normal; line-height: 1.4;">
-                                                    <i class="fa-solid fa-clipboard-check me-1"></i> <?php echo htmlspecialchars($row['pmr_status']); ?>
-                                                </span>
+                                    <div class="card mt-2 border-0 shadow-sm rounded-3 position-relative">
+                                        <?php if (!$is_read_only): ?>
+                                            <div class="position-absolute top-0 end-0 mt-2 me-2" style="z-index: 10;">
+                                                <a class="btn btn-sm btn-outline-theme border-0" href="edit_pmr.php?id=<?php echo (int)$row['id']; ?>" data-pmr-edit-url="edit_pmr.php?id=<?php echo (int)$row['id']; ?>" title="แก้ไขประวัตินี้">
+                                                    <i class="fa-solid fa-pen"></i>
+                                                </a>
                                             </div>
+                                        <?php endif; ?>
+                                    <div class="card-body p-3">
+                                        <!-- <div class="small text-secondary bg-light p-2 rounded border mb-2">
+                                            <strong>วันที่ Follow-up:</strong>
+                                            <?php echo !empty($row['fu_date']) ? date('d/m/Y H:i', strtotime($row['fu_date'])) : '-'; ?>
+                                        </div> -->
+                                        <div class="small text-secondary bg-light p-2 rounded border mb-2">
+                                            <strong>วันที่ Follow-up:</strong>
+                                            <?php echo !empty($row['fu_date']) ? date('d/m/Y H:i', strtotime($row['fu_date'])) : '-'; ?>
+                                        </div>
+                                        <div class="mb-2 pe-4">
+                                            <span class="badge bg-theme-light text-theme border border-theme w-100 text-start px-3 py-2 fs-6" style="white-space: normal; line-height: 1.4;">
+                                                <i class="fa-solid fa-clipboard-check me-1"></i> <?php echo htmlspecialchars((string)$row['pmr_status'], ENT_QUOTES, 'UTF-8'); ?>
+                                            </span>
+                                        </div>
+                                        <div class="small text-secondary bg-light p-2 rounded border mb-2">
+                                            <strong>Return to Exercise (RTE):</strong>
+                                            <?php echo $row['RTE'] === null ? '-' : ((int)$row['RTE'] === 1 ? 'ใช่' : 'ไม่ใช่'); ?>
+                                        </div>
                                             
-                                            <?php if($row['pmr_note']): ?>
-                                                <div class="small text-secondary mt-2 bg-light p-2 rounded border border-dashed">
-                                                    <strong class="text-dark d-block mb-1"><i class="fa-solid fa-note-sticky me-1 text-warning"></i> บันทึกเพิ่มเติม:</strong>
-                                                    <?php echo nl2br(htmlspecialchars($row['pmr_note'])); ?>
-                                                </div>
-                                            <?php endif; ?>
+                                        <?php if (!empty($row['pmr_note'])): ?>
+                                            <div class="small text-secondary mt-2 bg-light p-2 rounded border border-dashed">
+                                                <strong class="text-dark d-block mb-1"><i class="fa-solid fa-note-sticky me-1 text-warning"></i> บันทึกเพิ่มเติม:</strong>
+                                                <?php echo nl2br(htmlspecialchars((string)$row['pmr_note'], ENT_QUOTES, 'UTF-8')); ?>
+                                            </div>
+                                        <?php endif; ?>
                                             
-                                            <div class="mt-3 d-flex justify-content-between align-items-end">
-                                                <small class="text-muted"><i class="fa-solid fa-user-pen me-1"></i><?php echo htmlspecialchars($row['recorder_name']); ?></small>
+                                        <div class="mt-3 d-flex justify-content-between align-items-end">
+                                            <small class="text-muted"><i class="fa-solid fa-user-pen me-1"></i><?php echo htmlspecialchars((string)$row['recorder_name'], ENT_QUOTES, 'UTF-8'); ?></small>
                                                 
-                                                <?php if($row['next_pmr_date']): ?>
-                                                    <span class="badge bg-white border border-danger text-danger shadow-sm py-1 px-2"><i class="fa-regular fa-calendar-plus me-1"></i> นัดครั้งถัดไป: <?php echo date('d/m/Y', strtotime($row['next_pmr_date'])); ?></span>
-                                                <?php endif; ?>
+                                            <?php if (!empty($row['next_pmr_date'])): ?>
+                                                <span class="badge bg-white border border-danger text-danger shadow-sm py-1 px-2"><i class="fa-regular fa-calendar-plus me-1"></i> นัดครั้งถัดไป: <?php echo date('d/m/Y', strtotime($row['next_pmr_date'])); ?></span>
+                                            <?php endif; ?>
                                             </div>
 
                                         </div>
@@ -239,31 +273,59 @@ if (!empty($patient['weight']) && !empty($patient['height'])) {
                         <i class="fa-solid fa-pen-to-square me-2"></i>บันทึกอาการ ครั้งที่ <?php echo $track_count + 1; ?>
                     </div>
                     <div class="card-body p-4">
-                        <form action="save_pmr.php" method="POST">
-                            <input type="hidden" name="hn" value="<?php echo htmlspecialchars($hn); ?>">
-                            <input type="hidden" name="an" value="<?php echo htmlspecialchars($an); ?>">
+                        <form action="save_pmr.php" method="POST" data-pmr-form>
+                            <input type="hidden" name="hn" value="<?php echo htmlspecialchars($hn, ENT_QUOTES, 'UTF-8'); ?>">
+                            <input type="hidden" name="an" value="<?php echo htmlspecialchars($an, ENT_QUOTES, 'UTF-8'); ?>">
 
                             <div class="mb-4">
-                                <label class="form-label fw-bold border-bottom pb-2 w-100 mb-3 text-theme fs-5"><i class="fa-solid fa-list-check me-2"></i>ผลการฟื้นฟูผู้ป่วย</label>
-                                <!-- 🔴 แก้ไข value ให้ตรงกับฐานข้อมูลและ JavaScript ตรงนี้ -->
-                                <select name="pmr_status" id="pmr_status" class="form-select bg-light p-3" required onchange="toggleDateInput('pmr')" style="border: 2px solid var(--v-primary); font-weight: 600;">
-                                    <option value="" selected disabled>-- เลือกผลการฟื้นฟู --</option>
-                                    <option value="มาตามนัด อาการปกติ สิ้นสุดการฟื้นฟู" class="text-success">มาตามนัด อาการปกติ สิ้นสุดการฟื้นฟู</option>
-                                    <option value="มาตามนัด นัดฟื้นฟูต่อเนื่อง" class="text-primary">มาตามนัด นัดฟื้นฟูต่อเนื่อง (ระบุวันที่)</option>
-                                    <option value="มาไม่ตรงตามนัด อาการปกติ สิ้นสุดการฟื้นฟู" class="text-warning text-dark">มาไม่ตรงตามนัด อาการปกติ สิ้นสุดการฟื้นฟู</option>
-                                    <option value="มาไม่ตรงตามนัด นัดฟื้นฟูต่อเนื่อง" class="text-danger">มาไม่ตรงตามนัด นัดฟื้นฟูต่อเนื่อง (ระบุวันที่)</option>
-                                    <option value="ไม่มาตามนัด" class="text-danger">ไม่มาตามนัด</option>
-                                </select>
+                                <label class="form-label fw-bold border-bottom pb-2 w-100 mb-3 text-theme fs-5">
+                                    <i class="fa-solid fa-calendar-days me-2"></i>วันที่และเวลาที่มา Follow-up <span class="text-danger">*</span>
+                                </label>
+                                <input type="datetime-local" name="fu_date" id="pmr_fu_date" class="form-control shadow-sm" data-occ-followup-date data-discharge-date="<?php echo htmlspecialchars((string)($patient['discharge_date'] ?? ''), ENT_QUOTES, 'UTF-8'); ?>" required <?php echo $is_read_only ? 'disabled' : ''; ?>>
+                                <div class="form-text">ระบบคำนวณสถานะจากวันที่จำหน่าย: ภายใน 14 วัน = มาตรงนัด, เกิน 14 วัน = มาไม่ตรงนัด</div>
                             </div>
 
-                            <div class="mb-4 d-none p-3 bg-theme-light rounded-3 border" id="pmr_date_group" style="border-color: var(--v-primary) !important;">
-                                <label class="form-label text-theme fw-bold"><i class="fa-regular fa-calendar-plus me-2"></i>ระบุวันที่นัดครั้งต่อไป <span class="text-danger">*</span></label>
-                                <input type="date" name="next_pmr_date" id="next_pmr_date" class="form-control bg-white shadow-sm border-theme">
+                            <div class="mb-4">
+                                <label class="form-label fw-bold border-bottom pb-2 w-100 mb-3 text-theme fs-5">
+                                    <i class="fa-solid fa-list-check me-2"></i>ผลการฟื้นฟูผู้ป่วย
+                                </label>
+                                <input type="hidden" id="pmr_status" name="pmr_status" data-occ-status>
+                                <div class="disposition-row">
+                                    <div class="disposition-option dis-discharge">
+                                        <input type="radio" id="pmr_on_time" data-occ-status-value="มาตรงนัด" disabled>
+                                        <label for="pmr_on_time"><i class="fa-solid fa-check"></i>มาตรงนัด</label>
+                                    </div>
+                                    <div class="disposition-option dis-admit">
+                                        <input type="radio" id="pmr_late" data-occ-status-value="มาไม่ตรงนัด" disabled>
+                                        <label for="pmr_late"><i class="fa-solid fa-circle-xmark"></i>มาไม่ตรงนัด</label>
+                                    </div>
+                                </div>
                             </div>
+
+                            <div class="mb-4">
+                                <label class="form-label fw-bold border-bottom pb-2 w-100 mb-3 text-theme fs-5">
+                                    <i class="fa-solid fa-person-running me-2"></i>Return to Exercise (RTE) <span class="text-danger">*</span>
+                                </label>
+                                <div class="disposition-row RTE-options">
+                                    <div class="disposition-option dis-discharge">
+                                        <input type="radio" id="pmr_RTE_yes" name="RTE" value="1" required <?php echo $is_read_only ? 'disabled' : ''; ?>>
+                                        <label for="pmr_RTE_yes"><i class="fa-solid fa-person-running"></i>ใช่</label>
+                                    </div>
+                                    <div class="disposition-option dis-admit">
+                                        <input type="radio" id="pmr_RTE_no" name="RTE" value="0" <?php echo $is_read_only ? 'disabled' : ''; ?>>
+                                        <label for="pmr_RTE_no"><i class="fa-solid fa-ban"></i>ยังไม่ใช่</label>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- <div class="mb-4 p-3 bg-theme-light rounded-3 border" style="border-color: var(--v-primary) !important;">
+                                <label class="form-label text-theme fw-bold"><i class="fa-regular fa-calendar-plus me-2"></i>วันที่นัด PMR ครั้งถัดไป</label>
+                                <input type="date" name="next_pmr_date" id="next_pmr_date" class="form-control bg-white shadow-sm" <?php echo $is_read_only ? 'disabled' : ''; ?>>
+                            </div> -->
 
                             <div class="mb-4">
                                 <label class="form-label fw-bold border-bottom pb-2 w-100 mb-3 text-theme fs-5"><i class="fa-solid fa-notes-medical me-2"></i>บันทึกเพิ่มเติม (Progress Note)</label>
-                                <textarea name="pmr_note" class="form-control bg-light p-3" rows="4" placeholder="ระบุอาการ, แผนการฟื้นฟู หรือรายละเอียดเพิ่มเติม..."></textarea>
+                                <textarea name="pmr_note" class="form-control bg-light p-3" rows="4" placeholder="ระบุอาการ, แผนการฟื้นฟู หรือรายละเอียดเพิ่มเติม..." <?php echo $is_read_only ? 'disabled' : ''; ?>></textarea>
                             </div>
 
                             <div class="mb-4">
@@ -273,19 +335,23 @@ if (!empty($patient['weight']) && !empty($patient['height'])) {
                                         <label class="form-label small fw-bold">ผู้บันทึก <span class="text-danger">*</span></label>
                                         <div class="input-group shadow-sm">
                                             <span class="input-group-text bg-light"><i class="fa-solid fa-user-pen text-muted"></i></span>
-                                            <input type="text" name="recorder_name" class="form-control" required placeholder="กรอกชื่อแพทย์/พยาบาล">
+                                            <input type="text" name="recorder_name" class="form-control" maxlength="255" required placeholder="กรอกชื่อแพทย์/พยาบาล" <?php echo $is_read_only ? 'disabled' : ''; ?>>
                                         </div>
                                     </div>
                                     <div class="col-md-6">
                                         <label class="form-label small fw-bold">เวลาบันทึก <span class="text-danger">*</span></label>
-                                        <input type="datetime-local" name="record_datetime" class="form-control shadow-sm" value="<?php echo date('Y-m-d\TH:i'); ?>" required>
+                                        <input type="datetime-local" name="record_datetime" class="form-control shadow-sm" value="<?php echo htmlspecialchars($record_datetime, ENT_QUOTES, 'UTF-8'); ?>" required <?php echo $is_read_only ? 'disabled' : ''; ?>>
                                     </div>
                                 </div>
                             </div>
 
-                            <button type="submit" name="submit_pmr" class="btn btn-theme btn-lg w-100 shadow mt-2">
-                                <i class="fa-solid fa-save me-2"></i> บันทึกผลการฟื้นฟู
-                            </button>
+                            <?php if ($is_case_closed): ?>
+                                <button type="button" class="btn btn-secondary btn-lg w-100 shadow mt-2" disabled><i class="fa-solid fa-lock me-2"></i>เคสถูกปิดแล้ว</button>
+                            <?php else: ?>
+                                <button type="submit" name="submit_pmr" class="btn btn-theme btn-lg w-100 shadow mt-2" <?php echo !$can_edit_records ? 'disabled' : ''; ?>>
+                                    <i class="fa-solid fa-save me-2"></i> บันทึกผลการฟื้นฟู
+                                </button>
+                            <?php endif; ?>
                         </form>
                     </div>
                 </div>
@@ -294,26 +360,23 @@ if (!empty($patient['weight']) && !empty($patient['height'])) {
         </div>
     </div>
 
+    <div class="modal fade" id="pmrEditModal" tabindex="-1" aria-labelledby="pmrEditModalLabel" aria-hidden="true">
+        <div class="modal-dialog modal-lg modal-dialog-centered modal-dialog-scrollable">
+            <div class="modal-content"></div>
+        </div>
+    </div>
+    <script src="../bootstrap-5.0.2-dist/js/bootstrap.bundle.min.js"></script>
+    <script src="../OCC/occ_followup_status.js"></script>
+    <script src="../OCC/occ_edit_modal.js"></script>
     <script>
-        function toggleDateInput(type) {
-            var statusId = type + '_status';
-            var dateGroupId = type + '_date_group';
-            var dateInputId = 'next_' + type + '_date';
-
-            var val = document.getElementById(statusId).value;
-            var dateGroup = document.getElementById(dateGroupId);
-            var dateInput = document.getElementById(dateInputId);
-
-            // 🔴 ปรับ Logic ให้ค้นหาคำว่า "ต่อเนื่อง" อย่างเดียวก็เพียงพอ
-            if (val.includes("ต่อเนื่อง")) {
-                dateGroup.classList.remove('d-none');
-                dateInput.required = true; 
-            } else {
-                dateGroup.classList.add('d-none');
-                dateInput.required = false;
-                dateInput.value = ''; 
-            }
-        }
+        window.initRecordEditModal({
+            modalId: 'pmrEditModal',
+            linkSelector: '[data-pmr-edit-url]',
+            urlAttribute: 'data-pmr-edit-url',
+            formSelector: '[data-pmr-edit-form]',
+            submitName: 'update_pmr'
+        });
+        window.initOccFollowupStatus(document);
     </script>
 </body>
 </html>

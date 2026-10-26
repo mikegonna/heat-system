@@ -752,10 +752,10 @@ endif;
                     $cardClass = ''; $iconClass = ''; $faIcon = '';
                     
                     if($type == 'ER') {
-                        $d = $node['data']; $title = 'บันทึกข้อมูลฉุกเฉิน'; $doc = $d['reporter_name'] ?? '-';
+                        $d = $node['data']; $title = 'บันทึกข้อมูลฉุกเฉิน'; $doc = $d['repoRTEr_name'] ?? '-';
                         $cardClass = 'card-er'; $iconClass = 'icon-er'; $faIcon = 'fa-truck-medical';
                     }elseif($type == 'GP') {
-                        $d = $node['data']; $title = 'บันทึกข้อมูลห้องตรวจโรคทั่วไป'; $doc = $d['reporter_name'] ?? '-';
+                        $d = $node['data']; $title = 'บันทึกข้อมูลห้องตรวจโรคทั่วไป'; $doc = $d['repoRTEr_name'] ?? '-';
                         $cardClass = 'card-gp'; $iconClass = 'icon-gp'; $faIcon = 'fa-user-doctor';
                     } elseif($type == 'WARD') {
                         $d = $node['data']; $title = 'บันทึกผู้ป่วยใน - ' . ($d['admit_type'] ?? 'Ward');
@@ -1030,6 +1030,10 @@ endif;
                                                 <a class="btn btn-sm btn-outline-primary py-0 px-2" style="font-size: 0.8rem; border-radius: 4px;" href="OCC/edit_occ.php?id=<?php echo (int)$r['id']; ?>" data-occ-edit-url="OCC/edit_occ.php?id=<?php echo (int)$r['id']; ?>">
                                                     <i class="fa-solid fa-pen"></i> แก้ไข
                                                 </a>
+                                            <?php elseif ($baseType === 'PMR'): ?>
+                                                <a class="btn btn-sm btn-outline-primary py-0 px-2" style="font-size: 0.8rem; border-radius: 4px;" href="PMR/edit_pmr.php?id=<?php echo (int)$r['id']; ?>" data-pmr-edit-url="PMR/edit_pmr.php?id=<?php echo (int)$r['id']; ?>">
+                                                    <i class="fa-solid fa-pen"></i> แก้ไข
+                                                </a>
                                             <?php else: ?>
                                                 <button class="btn btn-sm btn-outline-primary py-0 px-2" style="font-size: 0.8rem; border-radius: 4px;" data-json="<?php echo $subAttrData; ?>" onclick="openRecordEdit('<?php echo $baseType; ?>', this)">
                                                     <i class="fa-solid fa-pen"></i> แก้ไข
@@ -1043,6 +1047,12 @@ endif;
                                         <div class="fm-col-half"><div class="fm-label">ผลการประเมิน</div><div class="fm-value text-primary fw-bold"><?php echo htmlspecialchars((string)($r[strtolower($baseType).'_status'] ?? '-')); ?></div></div>
                                         <div class="fm-col-half"><div class="fm-label text-danger">วันนัดครั้งต่อไป</div><div class="fm-value text-danger fw-bold"><i class="fa-regular fa-calendar-plus me-1"></i><?php echo !empty($r['next_'.$baseType.'_date']) ? date('d/m/Y', strtotime($r['next_'.$baseType.'_date'])) : '-'; ?></div></div>
                                     </div>
+                                    <?php if ($baseType === 'PMR'): ?>
+                                        <div class="fm-row">
+                                            <div class="fm-col-half"><div class="fm-label">วันที่ Follow-up</div><div class="fm-value"><?php echo !empty($r['fu_date']) ? date('d/m/Y H:i', strtotime($r['fu_date'])) : '-'; ?></div></div>
+                                            <div class="fm-col-half"><div class="fm-label">Return to Exercise (RTE)</div><div class="fm-value fw-bold"><?php echo !isset($r['RTE']) || $r['RTE'] === null ? '-' : ((int)$r['RTE'] === 1 ? 'ใช่' : 'ไม่ใช่'); ?></div></div>
+                                        </div>
+                                    <?php endif; ?>
                                     <?php if ($baseType === 'MED'): ?>
                                         <div class="fm-row">
                                             <?php
@@ -1891,9 +1901,23 @@ endif;
         <div class="modal-content"></div>
     </div>
 </div>
+<div class="modal fade" id="pmrEditModal" tabindex="-1" aria-labelledby="pmrEditModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-lg modal-dialog-centered modal-dialog-scrollable">
+        <div class="modal-content"></div>
+    </div>
+</div>
 <script src="<?php echo isset($path_prefix) ? $path_prefix : ''; ?>bootstrap-5.0.2-dist/js/bootstrap.bundle.min.js"></script>
 <script src="<?php echo isset($path_prefix) ? $path_prefix : ''; ?>OCC/occ_followup_status.js"></script>
 <script src="<?php echo isset($path_prefix) ? $path_prefix : ''; ?>OCC/occ_edit_modal.js"></script>
+<script>
+    window.initRecordEditModal({
+        modalId: 'pmrEditModal',
+        linkSelector: '[data-pmr-edit-url]',
+        urlAttribute: 'data-pmr-edit-url',
+        formSelector: '[data-pmr-edit-form]',
+        submitName: 'update_pmr'
+    });
+</script>
 <script>
     // JS Lists for Dynamic Followup Modal
     const medList = <?php echo json_encode($med_status_list); ?>;
@@ -2188,19 +2212,19 @@ endif;
         profileCard.style.opacity = '0.6';
         setTimeout(() => {
             let nameEl = document.getElementById('prof-name');
-            if(nameEl) nameEl.innerText = btn.getAttribute('data-name') || '-';
+            if(nameEl) nameEl.inneRTExt = btn.getAttribute('data-name') || '-';
             
             let idcardEl = document.getElementById('prof-idcard');
-            if(idcardEl) idcardEl.innerText = btn.getAttribute('data-idcard') || '-';
+            if(idcardEl) idcardEl.inneRTExt = btn.getAttribute('data-idcard') || '-';
 
-            document.getElementById('prof-age').innerText = btn.getAttribute('data-age') || '-';
-            document.getElementById('prof-weight').innerText = btn.getAttribute('data-weight') || '-';
-            document.getElementById('prof-height').innerText = btn.getAttribute('data-height') || '-';
-            document.getElementById('prof-bmi').innerText = btn.getAttribute('data-bmi') || '-';
-            document.getElementById('prof-phone').innerText = btn.getAttribute('data-phone') || '-';
-            document.getElementById('prof-disease').innerText = btn.getAttribute('data-disease') || '-';
-            document.getElementById('prof-dept').innerText = btn.getAttribute('data-dept') || '-';
-            document.getElementById('prof-ptype').innerText = btn.getAttribute('data-ptype') || '-';
+            document.getElementById('prof-age').inneRTExt = btn.getAttribute('data-age') || '-';
+            document.getElementById('prof-weight').inneRTExt = btn.getAttribute('data-weight') || '-';
+            document.getElementById('prof-height').inneRTExt = btn.getAttribute('data-height') || '-';
+            document.getElementById('prof-bmi').inneRTExt = btn.getAttribute('data-bmi') || '-';
+            document.getElementById('prof-phone').inneRTExt = btn.getAttribute('data-phone') || '-';
+            document.getElementById('prof-disease').inneRTExt = btn.getAttribute('data-disease') || '-';
+            document.getElementById('prof-dept').inneRTExt = btn.getAttribute('data-dept') || '-';
+            document.getElementById('prof-ptype').inneRTExt = btn.getAttribute('data-ptype') || '-';
             
             let btnEdit = document.getElementById('btnEditProfile');
             if (btnEdit) btnEdit.setAttribute('data-json', btn.getAttribute('data-fulljson'));
