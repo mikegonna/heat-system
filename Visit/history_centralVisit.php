@@ -60,7 +60,7 @@ if (isset($_GET['export']) && $_GET['export'] == 'excel') {
         SELECT p.hn, p.patient_id_card, p.patient_name, p.age, p.weight, p.height, p.bmi, p.person_type, p.department,
                m.*, w.admit_date, w.discharge_date, w.admit_type, w.initial_diagnosis, w.final_diagnosis
         FROM home_visits m
-        LEFT JOIN ward_details w ON m.an = w.an
+        LEFT JOIN ward_details w ON w.id = (SELECT MAX(w_latest.id) FROM ward_details w_latest WHERE w_latest.an = m.an)
         JOIN cases p ON m.hn = p.hn
         $whereSQL
         ORDER BY m.id DESC
