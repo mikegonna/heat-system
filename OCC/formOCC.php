@@ -85,6 +85,7 @@ if ($patient && !empty($patient['weight']) && !empty($patient['height']) && (flo
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>บันทึกอาชีวเวชกรรม (OCC)</title>
     <link href="../bootstrap-5.0.2-dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="occ_status.css" rel="stylesheet">
     <link href="https://fonts.googleapis.com/css2?family=Sarabun:wght@300;400;500;600&family=Prompt:wght@300;400;500;600;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
@@ -123,21 +124,6 @@ if ($patient && !empty($patient['weight']) && !empty($patient['height']) && (flo
         .timeline { border-left: 2px solid #bae6fd; padding-left: 20px; position: relative; margin-left: 10px; }
         .timeline-item { position: relative; margin-bottom: 30px; }
         .timeline-marker { position: absolute; left: -26px; top: 0; width: 14px; height: 14px; border-radius: 50%; background: var(--v-primary); border: 2px solid #fff; box-shadow: 0 0 0 2px var(--v-primary); }
-        .disposition-row { display: flex; flex-wrap: wrap; gap: 12px; margin-bottom: 8px; }
-        .disposition-option { flex: 1; min-width: 130px; }
-        @media (max-width: 500px) { .disposition-option { min-width: 45%; } }
-
-        .disposition-option input[type="radio"] { display: none; }
-        .disposition-option label {
-            display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 6px;
-            padding: 14px 10px; border: 2px solid var(--border); border-radius: var(--radius-md);
-            cursor: not-allowed; font-size: 0.9rem; font-weight: 600; font-family: 'Prompt',sans-serif;
-            color: var(--text-soft); background: #fafafa; transition: all 0.18s ease; text-align: center; height: 100%;
-        }
-        .disposition-option label i { font-size: 1.5rem; margin-bottom: 2px; }
-        .disposition-option input:checked + label { border-color: var(--er-green); background: var(--er-green); color: #fff; box-shadow: 0 4px 14px var(--er-green-20); }
-        .disposition-option.dis-discharge input:checked + label { background: #03a103; border-color: #03a103; box-shadow: 0 4px 14px rgba(2, 132, 199, 0.2); }
-        .disposition-option.dis-admit input:checked + label { background: #c70202; border-color: #c70202; box-shadow: 0 4px 14px rgba(2, 132, 199, 0.2); }
     </style>
 </head>
 <body>
@@ -237,7 +223,7 @@ if (file_exists('../header_followup.php')) {
                                     <div class="card mt-2 border-0 shadow-sm rounded-3 position-relative">
                                         <?php if (!$isCaseClosed && $canEditRecords): ?>
                                             <div class="position-absolute top-0 end-0 mt-2 me-2" style="z-index: 10;">
-                                                <a class="btn btn-sm btn-outline-theme border-0" href="edit_occ.php?id=<?php echo (int)$record['id']; ?>" title="แก้ไขประวัตินี้">
+                                                <a class="btn btn-sm btn-outline-theme border-0" href="edit_occ.php?id=<?php echo (int)$record['id']; ?>" data-occ-edit-url="edit_occ.php?id=<?php echo (int)$record['id']; ?>" title="แก้ไขประวัตินี้">
                                                     <i class="fa-solid fa-pen"></i>
                                                 </a>
                                             </div>
@@ -292,7 +278,7 @@ if (file_exists('../header_followup.php')) {
                                 <label class="form-label fw-bold border-bottom pb-2 w-100 mb-3 text-theme fs-5">
                                     <i class="fa-solid fa-calendar-days me-2"></i>วันที่และเวลาที่มา Follow-up <span class="text-danger">*</span>
                                 </label>
-                                <input type="datetime-local" name="fu_date" id="fu_date" class="form-control shadow-sm" required <?php echo $isReadOnly ? 'disabled' : ''; ?>>
+                                <input type="datetime-local" name="fu_date" id="fu_date" class="form-control shadow-sm" data-occ-followup-date data-discharge-date="<?php echo htmlspecialchars((string)($patient['discharge_date'] ?? ''), ENT_QUOTES, 'UTF-8'); ?>" required <?php echo $isReadOnly ? 'disabled' : ''; ?>>
                                 <div class="form-text">ระบบเลือกสถานะให้อัตโนมัติจากวันที่จำหน่าย: ภายใน 14 วัน = มาตรงนัด, เกิน 14 วัน = มาไม่ตรงนัด</div>
                             </div>
 
@@ -300,21 +286,21 @@ if (file_exists('../header_followup.php')) {
                                 <label class="form-label fw-bold border-bottom pb-2 w-100 mb-3 text-theme fs-5">
                                     <i class="fa-solid fa-list-check me-2"></i>ผลการติดตามผู้ป่วย
                                 </label>
-                                <input type="hidden" id="occ_status" name="occ_status">
+                                <input type="hidden" id="occ_status" name="occ_status" data-occ-status>
                                 <div class="disposition-row">
                                     <div class="disposition-option dis-discharge">
-                                        <input type="radio" id="occ_on_time" disabled>
+                                        <input type="radio" id="occ_on_time" data-occ-status-value="มาตรงนัด" disabled>
                                         <label for="occ_on_time"><i class="fa-solid fa-check"></i>มาตรงนัด</label>
                                     </div>
                                     <div class="disposition-option dis-admit">
-                                        <input type="radio" id="occ_late" disabled>
+                                        <input type="radio" id="occ_late" data-occ-status-value="มาไม่ตรงนัด" disabled>
                                         <label for="occ_late"><i class="fa-solid fa-circle-xmark"></i>มาไม่ตรงนัด</label>
                                     </div>
                                 </div>
                             </div>
 
                             <div class="mb-4">
-                                <label class="form-label fw-bold border-bottom pb-2 w-100 mb-3 text-theme fs-5"><i class="fa-solid fa-notes-medical me-2"></i>บันทึกเพิ่มเติม <span class="text-danger">*</span></label>
+                                <label class="form-label fw-bold border-bottom pb-2 w-100 mb-3 text-theme fs-5"><i class="fa-solid fa-notes-medical me-2"></i>บันทึกเพิ่มเติม</label>
                                 <textarea name="occ_note" id="occ_note" class="form-control bg-light p-3" rows="2" placeholder="ระบุอาการ, แผนการรักษา หรือรายละเอียดเพิ่มเติม..." <?php echo $isReadOnly ? 'disabled' : ''; ?>></textarea>
                             </div>
 
@@ -351,76 +337,16 @@ if (file_exists('../header_followup.php')) {
         </div>
     <?php endif; ?>
 </main>
+<div class="modal fade" id="occEditModal" tabindex="-1" aria-labelledby="occEditModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-lg modal-dialog-centered modal-dialog-scrollable">
+        <div class="modal-content"></div>
+    </div>
+</div>
 <script src="../bootstrap-5.0.2-dist/js/bootstrap.bundle.min.js"></script>
+<script src="occ_followup_status.js"></script>
+<script src="occ_edit_modal.js"></script>
 <script>
-    const dischargeDate = <?php echo json_encode($patient['discharge_date'] ?? '', JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_HEX_AMP); ?>;
-    const followupInput = document.getElementById('fu_date');
-    const occStatusInput = document.getElementById('occ_status');
-    const onTimeRadio = document.getElementById('occ_on_time');
-    const lateRadio = document.getElementById('occ_late');
-
-    function updateOccStatus() {
-        const value = followupInput.value;
-        if (!value) {
-            followupInput.setCustomValidity('');
-            occStatusInput.value = '';
-            onTimeRadio.checked = false;
-            lateRadio.checked = false;
-            return;
-        }
-
-        const followupTime = parseWallClock(value);
-        const dischargeTime = parseWallClock(dischargeDate);
-        if (!Number.isFinite(followupTime) || !Number.isFinite(dischargeTime)) {
-            followupInput.setCustomValidity('ไม่พบวันที่จำหน่ายหรือวันที่ Follow-up ที่ถูกต้อง');
-            occStatusInput.value = '';
-            onTimeRadio.checked = false;
-            lateRadio.checked = false;
-            return;
-        }
-
-        if (followupTime < dischargeTime) {
-            followupInput.setCustomValidity('วันที่ Follow-up ต้องไม่ก่อนวันจำหน่าย');
-            occStatusInput.value = '';
-            onTimeRadio.checked = false;
-            lateRadio.checked = false;
-            return;
-        }
-
-        followupInput.setCustomValidity('');
-        const status = followupTime - dischargeTime <= 14 * 24 * 60 * 60 * 1000 ? 'มาตรงนัด' : 'มาไม่ตรงนัด';
-        occStatusInput.value = status;
-        onTimeRadio.checked = status === 'มาตรงนัด';
-        lateRadio.checked = status === 'มาไม่ตรงนัด';
-    }
-
-    followupInput.addEventListener('change', updateOccStatus);
-    followupInput.addEventListener('input', updateOccStatus);
-
-    function parseWallClock(value) {
-        const parts = /^(\d{4})-(\d{2})-(\d{2})[T ](\d{2}):(\d{2})(?::(\d{2}))?/.exec(String(value));
-        if (!parts) return NaN;
-
-        const year = Number(parts[1]);
-        const month = Number(parts[2]);
-        const day = Number(parts[3]);
-        const hour = Number(parts[4]);
-        const minute = Number(parts[5]);
-        const second = Number(parts[6] || 0);
-        const timestamp = Date.UTC(year, month - 1, day, hour, minute, second);
-        const parsed = new Date(timestamp);
-        if (
-            parsed.getUTCFullYear() !== year
-            || parsed.getUTCMonth() !== month - 1
-            || parsed.getUTCDate() !== day
-            || parsed.getUTCHours() !== hour
-            || parsed.getUTCMinutes() !== minute
-            || parsed.getUTCSeconds() !== second
-        ) {
-            return NaN;
-        }
-        return timestamp;
-    }
+    window.initOccFollowupStatus(document);
 </script>
 </body>
 </html>

@@ -1,0 +1,65 @@
+.disposition-row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 12px;
+    margin-bottom: 8px;
+}
+
+.disposition-option {
+    flex: 1;
+    min-width: 130px;
+}
+
+.disposition-option input[type="radio"] {
+    display: none;
+}
+
+.disposition-option label {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    height: 100%;
+    padding: 14px 10px;
+    border: 2px solid #e5e7eb;
+    border-radius: 14px;
+    color: #6b7280;
+    background: #fafafa;
+    font-family: 'Prompt', sans-serif;
+    font-size: 0.9rem;
+    font-weight: 600;
+    text-align: center;
+    cursor: not-allowed;
+    transition: all 0.18s ease;
+}
+
+.disposition-option label i {
+    margin-bottom: 2px;
+    font-size: 1.5rem;
+}
+
+.disposition-option input:checked + label {
+    border-color: #059669;
+    color: #fff;
+    background: #059669;
+    box-shadow: 0 4px 14px rgba(5, 150, 105, 0.2);
+}
+
+.disposition-option.dis-discharge input:checked + label {
+    border-color: #03a103;
+    background: #03a103;
+    box-shadow: 0 4px 14px rgba(2, 132, 199, 0.2);
+}
+
+.disposition-option.dis-admit input:checked + label {
+    border-color: #c70202;
+    background: #c70202;
+    box-shadow: 0 4px 14px rgba(2, 132, 199, 0.2);
+}
+
+@media (max-width: 500px) {
+    .disposition-option {
+        min-width: 45%;
+    }
+}

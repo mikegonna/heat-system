@@ -22,6 +22,28 @@ $recordDate = normalizeOccDateTime($_POST['record_date'] ?? null);
 $note = is_string($_POST['occ_note'] ?? null) ? trim($_POST['occ_note']) : '';
 $recorderName = is_string($_POST['recorder_name'] ?? null) ? trim($_POST['recorder_name']) : '';
 $redirect = 'Location: formOCC.php?hn=' . urlencode($hn) . '&an=' . urlencode($an);
+$isAjaxRequest = strtolower($_SERVER['HTTP_X_REQUESTED_WITH'] ?? '') === 'xmlhttprequest';
+$respond = static function ($type, $message, $httpStatus = 200) use ($isAjaxRequest, $redirect) {
+    if (!$isAjaxRequest && $httpStatus >= 500) {
+        http_response_code($httpStatus);
+        exit($message);
+    }
+
+    if ($isAjaxRequest) {
+        http_response_code($httpStatus);
+        header('Content-Type: application/json; charset=utf-8');
+        echo json_encode(
+            ['success' => $type === 'success', 'message' => $message],
+            JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_HEX_AMP
+        );
+        exit();
+    }
+
+    $_SESSION['statusType'] = $type;
+    $_SESSION['statusMsg'] = $message;
+    header($redirect);
+    exit();
+};
 
 if (
     !isset($_POST['update_occ'])
@@ -33,10 +55,7 @@ if (
     || !$recordDate
     || $recorderName === ''
 ) {
-    $_SESSION['statusType'] = 'error';
-    $_SESSION['statusMsg'] = 'กรุณากรอกข้อมูล OCC ที่จำเป็นให้ครบถ้วนและตรวจสอบรูปแบบวันที่';
-    header($redirect);
-    exit();
+    $respond('error', 'กรุณากรอกข้อมูล OCC ที่จำเป็นให้ครบถ้วนและตรวจสอบรูปแบบวันที่', 422);
 }
 
 $caseStmt = $conn->prepare(
@@ -50,32 +69,24 @@ $caseStmt = $conn->prepare(
 );
 if (!$caseStmt) {
     error_log('Failed to prepare OCC edit case lookup: ' . $conn->error);
-    http_response_code(500);
-    exit('ไม่สามารถตรวจสอบข้อมูลเคสได้');
+    $respond('error', 'ไม่สามารถตรวจสอบข้อมูลเคสได้', 500);
 }
 $caseStmt->bind_param('iss', $id, $hn, $an);
 if (!$caseStmt->execute()) {
     error_log('Failed to execute OCC edit case lookup: ' . $caseStmt->error);
     $caseStmt->close();
-    http_response_code(500);
-    exit('ไม่สามารถตรวจสอบข้อมูลเคสได้');
+    $respond('error', 'ไม่สามารถตรวจสอบข้อมูลเคสได้', 500);
 }
 $case = $caseStmt->get_result()->fetch_assoc();
 $caseStmt->close();
 
 if (!$case || $case['status_case'] === 'Closed') {
-    $_SESSION['statusType'] = 'error';
-    $_SESSION['statusMsg'] = !$case ? 'ไม่พบรายการ OCC ที่ต้องการแก้ไข' : 'ไม่สามารถแก้ไขได้ เนื่องจากเคสถูกปิดแล้ว';
-    header($redirect);
-    exit();
+    $respond('error', !$case ? 'ไม่พบรายการ OCC ที่ต้องการแก้ไข' : 'ไม่สามารถแก้ไขได้ เนื่องจากเคสถูกปิดแล้ว', !$case ? 404 : 422);
 }
 
 $status = getOccFollowupStatus($_POST['fu_date'] ?? null, $case['discharge_date'] ?? null);
 if (!$status) {
-    $_SESSION['statusType'] = 'error';
-    $_SESSION['statusMsg'] = 'กรุณาระบุวันที่ Follow-up ที่ไม่ก่อนวันจำหน่าย และตรวจสอบวันจำหน่ายของเคส';
-    header($redirect);
-    exit();
+    $respond('error', 'กรุณาระบุวันที่ Follow-up ที่ไม่ก่อนวันจำหน่าย และตรวจสอบวันจำหน่ายของเคส', 422);
 }
 
 $stmt = $conn->prepare(
@@ -85,21 +96,14 @@ $stmt = $conn->prepare(
 );
 if (!$stmt) {
     error_log('Failed to prepare OCC update: ' . $conn->error);
-    http_response_code(500);
-    exit('ไม่สามารถเตรียมแก้ไขข้อมูล OCC ได้');
+    $respond('error', 'ไม่สามารถเตรียมแก้ไขข้อมูล OCC ได้', 500);
 }
 $stmt->bind_param('sssssiss', $fuDate, $status, $note, $recorderName, $recordDate, $id, $hn, $an);
 if (!$stmt->execute()) {
     error_log('Failed to update OCC record: ' . $stmt->error);
     $stmt->close();
-    $_SESSION['statusType'] = 'error';
-    $_SESSION['statusMsg'] = 'เกิดข้อผิดพลาดขณะบันทึกการแก้ไข OCC';
-    header($redirect);
-    exit();
+    $respond('error', 'เกิดข้อผิดพลาดขณะบันทึกการแก้ไข OCC', 500);
 }
 $stmt->close();
 
-$_SESSION['statusType'] = 'success';
-$_SESSION['statusMsg'] = 'แก้ไขข้อมูล OCC สำเร็จ';
-header($redirect);
-exit();
+$respond('success', 'แก้ไขข้อมูล OCC สำเร็จ');

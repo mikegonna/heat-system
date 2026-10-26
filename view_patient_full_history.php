@@ -458,6 +458,7 @@ if (!empty($ptInfo['weight']) && !empty($ptInfo['height'])) {
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
     <link href="CSS/style.css" rel="stylesheet">
+    <link href="OCC/occ_status.css" rel="stylesheet">
     <style>
                 :root {
             --t-main: <?php echo $t_main; ?>;
@@ -1026,7 +1027,7 @@ endif;
                                                 $subAttrData = htmlspecialchars(json_encode($r), ENT_QUOTES, 'UTF-8');
                                         ?>
                                             <?php if ($baseType === 'OCC'): ?>
-                                                <a class="btn btn-sm btn-outline-primary py-0 px-2" style="font-size: 0.8rem; border-radius: 4px;" href="OCC/edit_occ.php?id=<?php echo (int)$r['id']; ?>">
+                                                <a class="btn btn-sm btn-outline-primary py-0 px-2" style="font-size: 0.8rem; border-radius: 4px;" href="OCC/edit_occ.php?id=<?php echo (int)$r['id']; ?>" data-occ-edit-url="OCC/edit_occ.php?id=<?php echo (int)$r['id']; ?>">
                                                     <i class="fa-solid fa-pen"></i> แก้ไข
                                                 </a>
                                             <?php else: ?>
@@ -1885,7 +1886,14 @@ endif;
     </div>
 </div>
 
+<div class="modal fade" id="occEditModal" tabindex="-1" aria-labelledby="occEditModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-lg modal-dialog-centered modal-dialog-scrollable">
+        <div class="modal-content"></div>
+    </div>
+</div>
 <script src="<?php echo isset($path_prefix) ? $path_prefix : ''; ?>bootstrap-5.0.2-dist/js/bootstrap.bundle.min.js"></script>
+<script src="<?php echo isset($path_prefix) ? $path_prefix : ''; ?>OCC/occ_followup_status.js"></script>
+<script src="<?php echo isset($path_prefix) ? $path_prefix : ''; ?>OCC/occ_edit_modal.js"></script>
 <script>
     // JS Lists for Dynamic Followup Modal
     const medList = <?php echo json_encode($med_status_list); ?>;
