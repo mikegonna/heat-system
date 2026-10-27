@@ -10,6 +10,12 @@ if (!isset($_SESSION['user_id'])) { header("Location: ../login.php"); exit(); }
 require_once '../database/db_conn.php';
 require_once '../database/fiscal_year.php';
 
+$erRecordedAtColumn = $conn->query("SHOW COLUMNS FROM er_details LIKE 'recorded_at'");
+$hasErRecordedAt = $erRecordedAtColumn->num_rows > 0;
+$erRecordedAtExpr = $hasErRecordedAt
+    ? 'e.recorded_at'
+    : 'COALESCE(e.er_discharge_date, e.hospital_arrival_datetime, c.created_at)';
+
 // --- 💡 ตรวจสอบประเภทผู้ใช้ ---
 $current_user_name = strtolower($_SESSION['name'] ?? '');
 $is_pcu = ($current_user_name === 'pcu');
@@ -87,13 +93,16 @@ $h_offset = ($h_page - 1) * $limit;
 // $filterSQL_er = ใช้กับ query ที่มีเฉพาะ er_details (e) ไม่มี w
 $filterSQL    = "";
 $filterSQL_er = "";
+$filterSQL_ward = "";
 
 if (!empty($search)) {
     $filterSQL    .= " AND (c.hn LIKE '%$search%' OR w.an LIKE '%$search%' OR c.patient_name LIKE '%$search%') ";
     $filterSQL_er .= " AND (c.hn LIKE '%$search%' OR c.patient_name LIKE '%$search%') ";
+    $filterSQL_ward .= " AND (c.hn LIKE '%$search%' OR w.an LIKE '%$search%' OR c.patient_name LIKE '%$search%') ";
 }
-$filterSQL    .= " AND DATE(COALESCE(w.discharge_date, w.admit_date, e.recorded_at, c.created_at)) BETWEEN '$start_date' AND '$end_date' ";
-$filterSQL_er .= " AND DATE(COALESCE(e.recorded_at, c.created_at)) BETWEEN '$start_date' AND '$end_date' ";
+$filterSQL    .= " AND DATE(COALESCE(w.discharge_date, w.admit_date, $erRecordedAtExpr, c.created_at)) BETWEEN '$start_date' AND '$end_date' ";
+$filterSQL_er .= " AND DATE(COALESCE($erRecordedAtExpr, c.created_at)) BETWEEN '$start_date' AND '$end_date' ";
+$filterSQL_ward .= " AND DATE(COALESCE(w.discharge_date, w.admit_date, c.created_at)) BETWEEN '$start_date' AND '$end_date' ";
 
 function getSeverity($dx) {
     if (preg_match('/Heat Stroke|Heat Exhaustion|Rhabdomyolysis \(CPK > 1,000\)/i', $dx)) {
@@ -144,9 +153,13 @@ function getVisitDueBadge($dc_date, $visit_count, $severity) {
 // Helper Function: สร้าง Timeline (ใหม่ - ล่าสุดอยู่บนสุด)
 // ---------------------------------------------------------------------------
 function getPatientTimeline($conn, $case_id) {
+    global $hasErRecordedAt;
     $steps = [];
     
-    $qER = $conn->query("SELECT id, disposition, admit_type, hospital_arrival_datetime, recorded_at FROM er_details WHERE case_id = '$case_id' ORDER BY id DESC LIMIT 1");
+    $erTimeExpr = $hasErRecordedAt
+        ? 'COALESCE(er_discharge_date, recorded_at, hospital_arrival_datetime)'
+        : 'COALESCE(er_discharge_date, hospital_arrival_datetime)';
+    $qER = $conn->query("SELECT id, disposition, admit_type, hospital_arrival_datetime, $erTimeExpr as er_time FROM er_details WHERE case_id = '$case_id' ORDER BY id DESC LIMIT 1");
     $er_data = null;
     if ($qER && $qER->num_rows > 0) { 
         $er_data = $qER->fetch_assoc();
@@ -199,7 +212,7 @@ function getPatientTimeline($conn, $case_id) {
         } elseif ($er_data['disposition'] == 'Refer') {
             $steps[] = ['type' => 'refer', 'label' => 'Refer', 'icon' => 'fa-ambulance'];
         } elseif ($er_data['disposition'] == 'Discharge') {
-            $steps[] = ['type' => 'dc', 'label' => 'D/C', 'icon' => 'fa-house-circle-check', 'datetime' => $er_data['recorded_at'] ?? null];
+            $steps[] = ['type' => 'dc', 'label' => 'D/C', 'icon' => 'fa-house-circle-check', 'datetime' => $er_data['er_time'] ?? null];
         }
     }
     
@@ -245,7 +258,7 @@ $sqlWait_Base = "SELECT
 
     e.FstDx as er_dx,
     e.risk_factors,
-    e.recorded_at as er_time,
+    $erRecordedAtExpr as er_time,
     e.disposition as er_status,
     COALESCE(e.visit_unit, '') as visit_unit,
 
@@ -305,7 +318,7 @@ $w_totalPages = ceil($totalWait / $limit);
 // ดึงข้อมูลตาม Limit และ Offset
 $sqlWait = "$sqlWait_Base 
 ORDER BY 
-    e.recorded_at DESC
+    $erRecordedAtExpr DESC
 LIMIT $limit OFFSET $w_offset";
 $resWait = $conn->query($sqlWait);
 
@@ -370,7 +383,7 @@ $resWait = $conn->query($sqlWait);
             END
         )
 
-        $filterSQL
+        $filterSQL_ward
     ";
     $countWardQuery = $conn->query("
                                     SELECT COUNT(*) as t 
@@ -391,7 +404,7 @@ $resWard = $conn->query($sqlWard);
 // ---------------------------------------------------------------------------
 $sqlHist_Base = "SELECT 
                 c.id as case_id, c.hn, c.patient_name, c.age, c.phone, c.department, c.person_type,
-                e.cause_factor, e.risk_factors, e.FstDx as er_dx, e.recorded_at as er_time, e.disposition as er_status,
+                e.cause_factor, e.risk_factors, e.FstDx as er_dx, $erRecordedAtExpr as er_time, e.disposition as er_status,
                 w.an, w.discharge_date, w.status as ward_status, w.admit_date,
                 w.icu_diagnosis, w.final_diagnosis, w.initial_diagnosis,
                 COALESCE(w.visit_unit, e.visit_unit, '') as visit_unit,
@@ -437,7 +450,7 @@ $totalHist = $countHistQuery ? $countHistQuery->fetch_assoc()['t'] : 0;
 $h_totalPages = ceil($totalHist / $limit);
 
 // ดึงข้อมูลตาม Limit และ Offset
-$sqlHist = "$sqlHist_Base ORDER BY COALESCE(w.discharge_date, e.recorded_at, c.created_at) DESC LIMIT $limit OFFSET $h_offset";
+$sqlHist = "$sqlHist_Base ORDER BY COALESCE(w.discharge_date, $erRecordedAtExpr, c.created_at) DESC LIMIT $limit OFFSET $h_offset";
 $resHist = $conn->query($sqlHist);
 
 // ---------------------------------------------------------------------------
@@ -452,7 +465,7 @@ $kpi_wait_q = $conn->query("SELECT COUNT(*) as t FROM (
         (w.id IS NOT NULL AND w.status = 'Discharged' AND IFNULL(w.discharge_status,'') NOT IN ('Dead','Refer'))
         OR (w.id IS NULL AND e.id IS NOT NULL AND e.disposition = 'Discharge')
     )
-    AND DATE(COALESCE(w.discharge_date, w.admit_date, e.recorded_at, c.created_at)) BETWEEN '$start_date' AND '$end_date'
+    AND DATE(COALESCE(w.discharge_date, w.admit_date, $erRecordedAtExpr, c.created_at)) BETWEEN '$start_date' AND '$end_date'
     AND COALESCE(w.final_diagnosis, w.initial_diagnosis, e.FstDx, '')
     REGEXP 'Heat Stroke|Heat Exhaustion|Heat Syncope|Heat Cramps|Heat Tetany|Heat Edema|Prickly Heat|Rhabdomyolysis'
     $visit_unit_filter
@@ -470,7 +483,7 @@ $kpi_tracked_q = $conn->query("SELECT COUNT(*) as t FROM (
         (w.id IS NOT NULL AND w.status = 'Discharged' AND IFNULL(w.discharge_status,'') NOT IN ('Dead','Refer'))
         OR (w.id IS NULL AND e.id IS NOT NULL AND e.disposition = 'Discharge')
     )
-    AND DATE(COALESCE(w.discharge_date, w.admit_date, e.recorded_at, c.created_at)) BETWEEN '$start_date' AND '$end_date'
+    AND DATE(COALESCE(w.discharge_date, w.admit_date, $erRecordedAtExpr, c.created_at)) BETWEEN '$start_date' AND '$end_date'
     AND COALESCE(w.final_diagnosis, w.initial_diagnosis, e.FstDx, '') 
         REGEXP 'Heat Stroke|Heat Exhaustion|Rhabdomyolysis \\\\(CPK > 1,000\\\\)'
     $visit_unit_filter
@@ -487,7 +500,7 @@ $kpi_done_q = $conn->query("SELECT COUNT(*) as t FROM (
         (w.id IS NOT NULL AND w.status = 'Discharged' AND IFNULL(w.discharge_status,'') NOT IN ('Dead','Refer'))
         OR (w.id IS NULL AND e.id IS NOT NULL AND e.disposition = 'Discharge')
     )
-    AND DATE(COALESCE(w.discharge_date, w.admit_date, e.recorded_at, c.created_at)) BETWEEN '$start_date' AND '$end_date'
+    AND DATE(COALESCE(w.discharge_date, w.admit_date, $erRecordedAtExpr, c.created_at)) BETWEEN '$start_date' AND '$end_date'
     $visit_unit_filter
     AND (
         -- Severe ครบ 2 ครั้ง

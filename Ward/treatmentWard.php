@@ -333,7 +333,7 @@
                             <select name="admit_type" id="admit_type" class="form-select border-primary">
                                 <option value="">-- เลือก --</option>
                                 <?php
-                                $wards = ['Ward ICU', 'Ward RCU', 'Ward A4', 'Ward B3'];
+                                $wards = ['Ward ICU', 'Ward A4', 'Ward B3'];
                                 foreach ($wards as $w) {
                                     if (stripos($w, $current_user_name) === false) { echo "<option value=\"$w\">$w</option>"; }
                                 }

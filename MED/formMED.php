@@ -420,7 +420,7 @@ if (!empty($patient['weight']) && !empty($patient['height'])) {
                                 </div>
                             </div>
 
-                            <div class="mb-4 p-3 bg-theme-info rounded-3 border">
+                            <!-- <div class="mb-4 p-3 bg-theme-info rounded-3 border">
                                 <div class="form-check">
                                     <input class="form-check-input" type="checkbox" name="pmr" id="pmr_referral" value="1" <?php echo $disabled_attr; ?>>
                                     <label class="form-check-label fw-bold text-theme" for="pmr_referral">
@@ -428,7 +428,7 @@ if (!empty($patient['weight']) && !empty($patient['height'])) {
                                     </label>
                                 </div>
                                 <div class="form-text">เลือกเมื่อประเมินแล้วต้องให้ PMR ติดตามต่อ หลังผ่านการติดตาม OCC</div>
-                            </div>
+                            </div> -->
 
                             <!---
                                 <div class="mb-4 d-none p-3 bg-theme-light rounded-3 border" id="med_date_group" style="border-color: var(--v-primary) !important;">

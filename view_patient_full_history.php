@@ -752,10 +752,10 @@ endif;
                     $cardClass = ''; $iconClass = ''; $faIcon = '';
                     
                     if($type == 'ER') {
-                        $d = $node['data']; $title = 'บันทึกข้อมูลฉุกเฉิน'; $doc = $d['repoRTEr_name'] ?? '-';
+                        $d = $node['data']; $title = 'บันทึกข้อมูลฉุกเฉิน'; $doc = $d['reporter_name'] ?? '-';
                         $cardClass = 'card-er'; $iconClass = 'icon-er'; $faIcon = 'fa-truck-medical';
                     }elseif($type == 'GP') {
-                        $d = $node['data']; $title = 'บันทึกข้อมูลห้องตรวจโรคทั่วไป'; $doc = $d['repoRTEr_name'] ?? '-';
+                        $d = $node['data']; $title = 'บันทึกข้อมูลห้องตรวจโรคทั่วไป'; $doc = $d['reporter_name'] ?? '-';
                         $cardClass = 'card-gp'; $iconClass = 'icon-gp'; $faIcon = 'fa-user-doctor';
                     } elseif($type == 'WARD') {
                         $d = $node['data']; $title = 'บันทึกผู้ป่วยใน - ' . ($d['admit_type'] ?? 'Ward');
