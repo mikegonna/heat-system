@@ -145,8 +145,10 @@ if (!function_exists('getOutcomeState')) {
 $sql_list = "SELECT 
                 p.id as case_id, p.hn, p.patient_name, p.department, p.person_type, p.created_at, p.status_case,
                 p.`comment` as case_comment,
+                (SELECT COUNT(*) FROM gp_details WHERE case_id = p.id) as gp_record_count,
                 (SELECT FstDx FROM gp_details WHERE case_id = p.id ORDER BY id DESC LIMIT 1) as gp_dx,
                 (SELECT disposition FROM gp_details WHERE case_id = p.id ORDER BY id DESC LIMIT 1) as gp_disposition,
+                (SELECT COUNT(*) FROM er_details WHERE case_id = p.id) as er_record_count,
                 (SELECT FstDx FROM er_details WHERE case_id = p.id ORDER BY id DESC LIMIT 1) as er_dx,
                 (SELECT disposition FROM er_details WHERE case_id = p.id ORDER BY id DESC LIMIT 1) as er_status,
                 (SELECT admit_type FROM er_details WHERE case_id = p.id ORDER BY id DESC LIMIT 1) as er_admit_type,
@@ -157,9 +159,11 @@ $sql_list = "SELECT
                 w.id as last_ward_id,
                 w.an as an,
                 w.final_diagnosis, w.icu_diagnosis, w.initial_diagnosis,
+                (SELECT COUNT(*) FROM med_records WHERE an = w.an) as med_record_count,
+                (SELECT COUNT(*) FROM pmr_records WHERE an = w.an) as pmr_record_count,
                 (SELECT med_status FROM med_records WHERE an = w.an ORDER BY record_datetime DESC LIMIT 1) as last_med_status,
                 (SELECT pmr_status FROM pmr_records WHERE an = w.an ORDER BY record_datetime DESC LIMIT 1) as last_pmr_status,
-                (SELECT COUNT(*) FROM home_visits WHERE an = w.an) as pcu_count
+                (SELECT COUNT(*) FROM home_visits WHERE hn = p.hn AND (an = w.an OR an IS NULL OR an = '')) as pcu_count
              FROM cases p
              LEFT JOIN ward_details w ON w.id = (SELECT MAX(id) FROM ward_details WHERE case_id = p.id)
              ORDER BY p.id DESC";
@@ -254,6 +258,17 @@ foreach($depts as $d) {
 // 🔄 ประมวลผลข้อมูล (Loop)
 // ---------------------------------------------------------------------------
 foreach($all_cases as $row) {
+    $arrival_datetime = $row['hospital_arrival_datetime'] ?? '';
+    $arrival_time = (!empty($arrival_datetime) && $arrival_datetime !== '0000-00-00 00:00:00')
+        ? strtotime($arrival_datetime)
+        : false;
+    $created_timestamp = strtotime($row['created_at'] ?? '');
+    $case_date_timestamp = $arrival_time !== false ? $arrival_time : $created_timestamp;
+    $case_date = $case_date_timestamp !== false ? date('Y-m-d', $case_date_timestamp) : '';
+    if (($filter_start_date !== '' || $filter_end_date !== '') && $case_date === '') continue;
+    if ($filter_start_date !== '' && $case_date < $filter_start_date) continue;
+    if ($filter_end_date !== '' && $case_date > $filter_end_date) continue;
+
     $is_pct_closed = ($row['status_case'] === 'Closed');
     $w_stat = $row['last_ward_status'] ?? '';
     $w_type = $row['last_ward_type'] ?? '';
@@ -261,61 +276,26 @@ foreach($all_cases as $row) {
     $w_dc_stat = $row['last_ward_dc_status'] ?? '';
 
     $assigned_depts = [];
+    if ((int)($row['gp_record_count'] ?? 0) > 0) {
+        $assigned_depts[] = 'GP';
+    }
+    if ((int)($row['er_record_count'] ?? 0) > 0) {
+        $assigned_depts[] = 'ER';
+    }
+    if (!empty($row['last_ward_id'])) {
+        $ward_dept = 'A4';
+        if (stripos($w_type, 'ICU') !== false) $ward_dept = 'ICU';
+        elseif (stripos($w_type, 'RCU') !== false) $ward_dept = 'RCU';
+        elseif (stripos($w_type, 'B3') !== false) $ward_dept = 'B3';
+        $assigned_depts[] = $ward_dept;
 
-    if (!$is_pct_closed) {
-        if (empty($row['last_ward_id'])) {
-            if (!empty($row['gp_dx']) && empty($row['er_dx']) && empty($e_stat)) {
-                // ผู้ป่วยที่จบการรักษาที่ GP (ไม่มีข้อมูล ER หรือ Ward)
-                $assigned_depts[] = 'GP';
-            } elseif (empty($e_stat) || $e_stat == 'Admit') {
-                $assigned_depts[] = 'ER';
-            }
-        } else {
-            if ($w_stat == 'Active' || $w_stat == 'AdmitWait') {
-                $t = 'A4';
-                if (stripos($w_type, 'ICU') !== false) $t = 'ICU';
-                elseif (stripos($w_type, 'RCU') !== false) $t = 'RCU';
-                elseif (stripos($w_type, 'B3') !== false) $t = 'B3';
-                $assigned_depts[] = strtoupper($t);
-            } elseif ($w_stat == 'Discharged') {
-                $med_stat = $row['last_med_status'] ?? '';
-                $pmr_stat = $row['last_pmr_status'] ?? '';
-                $pcu_count = (int)($row['pcu_count'] ?? 0);
-
-                if (getSeverityCategory($row['final_diagnosis'] ?? '') === 'Severe') {
-                    $assigned_depts[] = 'MED';
-                    $assigned_depts[] = 'PMR';
-                } else {
-                    if (empty($med_stat)) $assigned_depts[] = 'MED';
-                    if (!empty($med_stat) && strpos($med_stat, 'นัดพบแพทย์เวชศาสตร์ฟื้นฟู') !== false) {
-                        if (empty($pmr_stat) || strpos($pmr_stat, 'สิ้นสุด') === false) $assigned_depts[] = 'PMR';
-                    }
-                }
-                        $best_dx_for_pcu = !empty($row['final_diagnosis'])
-                        ? $row['final_diagnosis']
-                        : (!empty($row['icu_diagnosis'])
-                            ? $row['icu_diagnosis']
-                            : (!empty($row['initial_diagnosis'])
-                                ? $row['initial_diagnosis']
-                                : (!empty($row['gp_dx']) ? $row['gp_dx'] : ($row['er_dx'] ?? '-'))
-                            )
-                        );
-                    $sev_for_pcu = getSeverityCategory($best_dx_for_pcu);
-
-                    // ถ้า final_diagnosis มีค่า ต้องเป็น heat เท่านั้น ถึงจะเข้า PCU
-                    $is_heat_dx = empty($row['final_diagnosis'])
-                        || $sev_for_pcu !== 'Mild'
-                        || preg_match('/Heat|Rhabdomyolysis|Prickly/i', $row['final_diagnosis']);
-
-                    if ($is_heat_dx) {
-                        $pcu_required = 3;
-                        if ($sev_for_pcu === 'Severe')   $pcu_required = 2;
-                        if ($sev_for_pcu === 'Moderate') $pcu_required = 1;
-
-                        if ($pcu_count < $pcu_required) $assigned_depts[] = 'PCU';
-                    }
-            }
+        if (!$is_pct_closed && $w_stat === 'Discharged' && getSeverityCategory($row['final_diagnosis'] ?? '') === 'Severe') {
+            $assigned_depts[] = 'MED';
+            $assigned_depts[] = 'PMR';
         }
+    }
+    if ((int)($row['pcu_count'] ?? 0) > 0) {
+        $assigned_depts[] = 'PCU';
     }
 
     $best_dx = '-';
@@ -378,37 +358,84 @@ foreach($all_cases as $row) {
     elseif (strpos($raw_ptype, 'นอก ทบ.') !== false || strpos($raw_dept, 'พลเรือน') !== false) $mapped_ptype = 'นอก ทบ.';
 
     $created_time = strtotime($row['created_at']);
-    $arrival_datetime = $row['hospital_arrival_datetime'] ?? '';
-    $arrival_time = (!empty($arrival_datetime) && $arrival_datetime !== '0000-00-00 00:00:00')
-        ? strtotime($arrival_datetime)
-        : false;
     $pt_time = $arrival_time !== false ? $arrival_time : $created_time;
     $pt_m = date('n', $pt_time);
     
     foreach($assigned_depts as $d) {
-        $dept_stats[$d]['sev'][$sev]++;
+        $dept_dx = $best_dx;
+        if ($d === 'GP' && !empty($row['gp_dx'])) {
+            $dept_dx = $row['gp_dx'];
+        } elseif ($d === 'ER' && !empty($row['er_dx'])) {
+            $dept_dx = $row['er_dx'];
+        }
+        $dept_is_heat_case = (bool)preg_match('/Heat Stroke|Heat Exhaustion|Rhabdomyolysis|Heat Tetany|Heat Cramps|Heat Syncope|Heat Edema|Prickly Heat/i', $dept_dx);
+        $dept_matched_dx = null;
+        if ($dept_dx !== '-' && $dept_dx !== '') {
+            $dept_matched_dx = 'อื่นๆ';
+            foreach ($heat_keywords_full as $heat_keyword) {
+                if (stripos($dept_dx, $heat_keyword) !== false) {
+                    $dept_matched_dx = $heat_keyword;
+                    break;
+                }
+            }
+        }
+
+        $dept_stats[$d]['sev'][getSeverityCategory($dept_dx)]++;
         $dept_stats[$d]['total']++;
-        if ($is_heat_case) $dept_stats[$d]['ptype'][$mapped_ptype]++;
+        if ($dept_is_heat_case) $dept_stats[$d]['ptype'][$mapped_ptype]++;
         
-        if ($matched_dx) {
-            $dept_stats[$d]['heat_by_type'][$matched_dx]++;
-            $dept_stats[$d]['heat_cases'][$matched_dx][] = [
+        if ($dept_matched_dx !== null) {
+            $dept_stats[$d]['heat_by_type'][$dept_matched_dx]++;
+            $dept_stats[$d]['heat_cases'][$dept_matched_dx][] = [
                 'hn' => $row['hn'] ?? '-',
                 'patient_name' => $row['patient_name'] ?? '-',
                 'person_type' => $row['person_type'] ?? '-',
-                'diagnosis' => $best_dx,
+                'diagnosis' => $dept_dx,
                 'created_at' => $row['created_at'] ?? ''
             ];
-            if ($is_heat_case) $dept_stats[$d]['heat_by_month'][$matched_dx][$pt_m]++;
+            if ($dept_is_heat_case) $dept_stats[$d]['heat_by_month'][$dept_matched_dx][$pt_m]++;
         }
-        $outState = getOutcomeState($d, $w_stat);
-        if ($outState == 'Admit') $dept_stats[$d]['admit']++; else $dept_stats[$d]['wait']++;
+        if ($d === 'GP' && ($row['gp_disposition'] ?? '') === 'Dead') {
+            $dept_stats[$d]['dead']++;
+        } elseif ($d === 'GP' && ($row['gp_disposition'] ?? '') === 'Refer') {
+            $dept_stats[$d]['refer']++;
+        } elseif ($d === 'GP' && ($row['gp_disposition'] ?? '') === 'Discharge') {
+            $dept_stats[$d]['dc']++;
+        } elseif ($d === 'ER' && $e_stat === 'Dead') {
+            $dept_stats[$d]['dead']++;
+        } elseif ($d === 'ER' && $e_stat === 'Refer') {
+            $dept_stats[$d]['refer']++;
+        } elseif ($d === 'ER' && $e_stat === 'Discharge') {
+            $dept_stats[$d]['dc']++;
+        } elseif (in_array($d, ['ICU', 'RCU', 'A4', 'B3'], true) && $w_stat === 'Active') {
+            $dept_stats[$d]['admit']++;
+        } elseif (in_array($d, ['ICU', 'RCU', 'A4', 'B3'], true) && $w_stat === 'Dead') {
+            $dept_stats[$d]['dead']++;
+        } elseif (in_array($d, ['ICU', 'RCU', 'A4', 'B3'], true) && $w_stat === 'Refer') {
+            $dept_stats[$d]['refer']++;
+        } elseif (in_array($d, ['ICU', 'RCU', 'A4', 'B3'], true) && $w_stat === 'Discharged' && $w_dc_stat === 'Dead') {
+            $dept_stats[$d]['dead']++;
+        } elseif (in_array($d, ['ICU', 'RCU', 'A4', 'B3'], true) && ($w_stat === 'Refer' || ($w_stat === 'Discharged' && $w_dc_stat === 'Refer'))) {
+            $dept_stats[$d]['refer']++;
+        } elseif (in_array($d, ['ICU', 'RCU', 'A4', 'B3'], true) && $w_stat === 'Discharged') {
+            $dept_stats[$d]['dc']++;
+        } elseif ($d === 'MED' && (int)($row['med_record_count'] ?? 0) > 0) {
+            $dept_stats[$d]['dc']++;
+        } elseif ($d === 'PMR' && (int)($row['pmr_record_count'] ?? 0) > 0) {
+            $dept_stats[$d]['dc']++;
+        } elseif ($d === 'PCU') {
+            $pcu_required = 3;
+            if (getSeverityCategory($best_dx) === 'Severe') $pcu_required = 2;
+            elseif (getSeverityCategory($best_dx) === 'Moderate') $pcu_required = 1;
+            if ((int)($row['pcu_count'] ?? 0) >= $pcu_required) $dept_stats[$d]['dc']++;
+            else $dept_stats[$d]['wait']++;
+        } elseif ($d === 'GP' || $d === 'ER' || in_array($d, ['ICU', 'RCU', 'A4', 'B3'], true)) {
+            $dept_stats[$d]['wait']++;
+        } else {
+            $dept_stats[$d]['wait']++;
+        }
     }
 
-    $case_date = $arrival_time !== false ? date('Y-m-d', $arrival_time) : '';
-    if (($filter_start_date !== '' || $filter_end_date !== '') && $case_date === '') continue;
-    if ($filter_start_date !== '' && $case_date < $filter_start_date) continue;
-    if ($filter_end_date !== '' && $case_date > $filter_end_date) continue;
     if ($matched_dx && $is_heat_case) { $overview_stats['heat_by_month'][$matched_dx][$pt_m]++; }
     
     $filtered_overview[] = $row;
@@ -564,38 +591,6 @@ $res_er_waiting = $conn->query("SELECT row_id, hn, person_ID, Fname, work_locate
 if ($res_er_waiting && $res_er_waiting->num_rows > 0) {
     while ($ew = $res_er_waiting->fetch_assoc()) {
         $er_waiting_list[] = $ew;
-    }
-}
-
-$q_w_hist = $conn->query("SELECT admit_type, status, discharge_status FROM ward_details WHERE status IN ('Discharged', 'Refer', 'Dead')");
-if($q_w_hist) {
-    while($w = $q_w_hist->fetch_assoc()) {
-        $t = 'A4';
-        if (stripos($w['admit_type'], 'ICU') !== false) $t = 'ICU';
-        elseif (stripos($w['admit_type'], 'RCU') !== false) $t = 'RCU';
-        elseif (stripos($w['admit_type'], 'B3') !== false) $t = 'B3';
-        
-        if ($w['discharge_status'] == 'Dead') $dept_stats[$t]['dead']++;
-        elseif ($w['discharge_status'] == 'Refer') $dept_stats[$t]['refer']++;
-        else $dept_stats[$t]['dc']++;
-    }
-}
-
-$q_e_hist = $conn->query("SELECT disposition FROM er_details WHERE disposition IN ('Discharge', 'Refer', 'Dead')");
-if($q_e_hist) {
-    while($e = $q_e_hist->fetch_assoc()) {
-        if ($e['disposition'] == 'Dead') $dept_stats['ER']['dead']++;
-        elseif ($e['disposition'] == 'Refer') $dept_stats['ER']['refer']++;
-        else $dept_stats['ER']['dc']++;
-    }
-}
-
-$q_gp_hist = $conn->query("SELECT disposition FROM gp_details WHERE disposition IN ('Discharge', 'Refer', 'Dead')");
-if($q_gp_hist) {
-    while($g = $q_gp_hist->fetch_assoc()) {
-        if ($g['disposition'] == 'Dead') $dept_stats['GP']['dead']++;
-        elseif ($g['disposition'] == 'Refer') $dept_stats['GP']['refer']++;
-        else $dept_stats['GP']['dc']++;
     }
 }
 
@@ -878,6 +873,8 @@ if (!function_exists('renderPatientTable')) {
                 elseif ($row['last_ward_status'] == 'Refer') { $status_html .= "<span class='st-badge st-refer'><i class='fa-solid fa-ambulance'></i> Refer จาก " . pct_escape_html($row['last_ward_type'] ?? '') . "</span>"; } 
                 elseif ($row['last_ward_status'] == 'Dead') { $status_html .= "<span class='st-badge st-dead'><i class='fa-solid fa-book-skull'></i> เสียชีวิต (" . pct_escape_html($row['last_ward_type'] ?? '') . ")</span>"; } 
                 elseif ($row['er_status'] == 'Admit') { $er_dest = !empty($row['er_admit_type']) ? pct_escape_html($row['er_admit_type']) : ''; $status_html .= "<span class='st-badge st-er'><i class='fa-solid fa-truck-medical'></i> ER รอส่ง {$er_dest}</span>"; } 
+                elseif ($row['er_status'] == 'Refer') { $status_html .= "<span class='st-badge st-refer'><i class='fa-solid fa-ambulance'></i> Refer จาก ER</span>"; }
+                elseif ($row['er_status'] == 'Discharge') { $status_html .= "<span class='st-badge st-dc'><i class='fa-solid fa-house-circle-check'></i> D/C จาก ER</span>"; }
                 elseif (empty($row['er_status']) && !empty($row['gp_dx'])) {
                     $status_html .= "<span class='st-badge st-gp'>
                         <i class='fa-solid fa-stethoscope'></i> D/C จาก GP
@@ -1377,7 +1374,7 @@ if ($is_viewer) {
         <li class="nav-item"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#tab-gp"><i class="fa-solid fa-user-doctor me-1"></i> GP</button></li>
         <li class="nav-item"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#tab-er"><i class="fa-solid fa-truck-medical me-1"></i> ER</button></li>
         <li class="nav-item"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#tab-icu"><i class="fa-solid fa-heart-pulse me-1"></i> ICU</button></li>
-        <li class="nav-item"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#tab-rcu"><i class="fa-solid fa-bed me-1"></i> RCU</button></li>
+        <!-- <li class="nav-item"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#tab-rcu"><i class="fa-solid fa-bed me-1"></i> RCU</button></li> -->
         <li class="nav-item"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#tab-a4"><i class="fa-solid fa-bed me-1"></i> A4</button></li>
         <li class="nav-item"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#tab-b3"><i class="fa-solid fa-bed me-1"></i> B3</button></li>
         <li class="nav-item"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#tab-med"><i class="fa-solid fa-stethoscope me-1"></i> MED</button></li>
@@ -1385,48 +1382,47 @@ if ($is_viewer) {
         <li class="nav-item"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#tab-pcu"><i class="fa-solid fa-house-medical me-1"></i> PCU</button></li>
     </ul>
 
+    <form method="GET" class="row g-2 g-md-3 mb-4 mt-3 bg-white p-3 p-md-4 rounded-4 shadow-sm border align-items-end" style="border-color: var(--border) !important;">
+        <div class="col-12 col-md-3">
+            <label for="filter_start_date" class="form-label small fw-bold text-dark mb-1 mb-md-2"><i class="fa-regular fa-calendar-days me-1 text-muted"></i> วันที่เริ่มต้น</label>
+            <div class="input-group">
+                <input type="text" id="filter_start_date_display" class="form-control" value="<?= htmlspecialchars($format_thai_date_filter($filter_start_date), ENT_QUOTES, 'UTF-8') ?>" placeholder="เลือกวันที่" readonly aria-hidden="true">
+                <button type="button" class="btn btn-outline-secondary position-relative" aria-label="เปิดปฏิทินวันที่เริ่มต้น">
+                    <i class="fa-regular fa-calendar"></i>
+                    <input type="date" id="filter_start_date" name="filter_start_date" value="<?= htmlspecialchars($filter_start_date, ENT_QUOTES, 'UTF-8') ?>" aria-label="วันที่เริ่มต้น" style="position:absolute; inset:0; width:100%; height:100%; opacity:0; cursor:pointer;">
+                </button>
+            </div>
+        </div>
+        <div class="col-12 col-md-3">
+            <label for="filter_end_date" class="form-label small fw-bold text-dark mb-1 mb-md-2"><i class="fa-regular fa-calendar me-1 text-muted"></i> วันที่สิ้นสุด</label>
+            <div class="input-group">
+                <input type="text" id="filter_end_date_display" class="form-control" value="<?= htmlspecialchars($format_thai_date_filter($filter_end_date), ENT_QUOTES, 'UTF-8') ?>" placeholder="เลือกวันที่" readonly aria-hidden="true">
+                <button type="button" class="btn btn-outline-secondary position-relative" aria-label="เปิดปฏิทินวันที่สิ้นสุด">
+                    <i class="fa-regular fa-calendar"></i>
+                    <input type="date" id="filter_end_date" name="filter_end_date" value="<?= htmlspecialchars($filter_end_date, ENT_QUOTES, 'UTF-8') ?>" aria-label="วันที่สิ้นสุด" style="position:absolute; inset:0; width:100%; height:100%; opacity:0; cursor:pointer;">
+                </button>
+            </div>
+        </div>
+        <div class="col-12 col-md-3 mt-3 mt-md-0">
+            <button type="submit" class="btn w-100 fw-bold shadow-sm" style="background-color: var(--pct-primary); color: white; height: 48px; border-radius: 12px;">
+                <i class="fa-solid fa-filter me-1"></i> ประมวลผล
+            </button>
+        </div>
+        <?php if ($filter_start_date !== '' || $filter_end_date !== ''): ?>
+        <div class="col-12 col-md-3 mt-2 mt-md-0">
+            <a href="indexPCT2.php" class="btn btn-light w-100 border fw-bold shadow-sm" style="height: 48px; border-radius: 12px; color: var(--pct-text-light);">
+                <i class="fa-solid fa-rotate-left me-1"></i> ล้างค่า
+            </a>
+        </div>
+        <?php endif; ?>
+    </form>
+
     <!-- 3. TAB CONTENT -->
     <div class="tab-content" id="pctTabContent">
         
         <!-- ==================== TAB: OVERVIEW ==================== -->
         <div class="tab-pane fade show active" id="tab-overview" role="tabpanel">
             
-            <!-- 📌 ตัวกรองช่วงวันที่ -->
-            <form method="GET" class="row g-2 g-md-3 mb-4 bg-white p-3 p-md-4 rounded-4 shadow-sm border align-items-end" style="border-color: var(--border) !important;">
-                <div class="col-12 col-md-3">
-                    <label for="filter_start_date" class="form-label small fw-bold text-dark mb-1 mb-md-2"><i class="fa-regular fa-calendar-days me-1 text-muted"></i> วันที่เริ่มต้น</label>
-                    <div class="input-group">
-                        <input type="text" id="filter_start_date_display" class="form-control" value="<?= htmlspecialchars($format_thai_date_filter($filter_start_date), ENT_QUOTES, 'UTF-8') ?>" placeholder="เลือกวันที่" readonly aria-hidden="true">
-                        <button type="button" class="btn btn-outline-secondary position-relative" aria-label="เปิดปฏิทินวันที่เริ่มต้น">
-                            <i class="fa-regular fa-calendar"></i>
-                            <input type="date" id="filter_start_date" name="filter_start_date" value="<?= htmlspecialchars($filter_start_date, ENT_QUOTES, 'UTF-8') ?>" aria-label="วันที่เริ่มต้น" style="position:absolute; inset:0; width:100%; height:100%; opacity:0; cursor:pointer;">
-                        </button>
-                    </div>
-                </div>
-                <div class="col-12 col-md-3">
-                    <label for="filter_end_date" class="form-label small fw-bold text-dark mb-1 mb-md-2"><i class="fa-regular fa-calendar me-1 text-muted"></i> วันที่สิ้นสุด</label>
-                    <div class="input-group">
-                        <input type="text" id="filter_end_date_display" class="form-control" value="<?= htmlspecialchars($format_thai_date_filter($filter_end_date), ENT_QUOTES, 'UTF-8') ?>" placeholder="เลือกวันที่" readonly aria-hidden="true">
-                        <button type="button" class="btn btn-outline-secondary position-relative" aria-label="เปิดปฏิทินวันที่สิ้นสุด">
-                            <i class="fa-regular fa-calendar"></i>
-                            <input type="date" id="filter_end_date" name="filter_end_date" value="<?= htmlspecialchars($filter_end_date, ENT_QUOTES, 'UTF-8') ?>" aria-label="วันที่สิ้นสุด" style="position:absolute; inset:0; width:100%; height:100%; opacity:0; cursor:pointer;">
-                        </button>
-                    </div>
-                </div>
-                <div class="col-12 col-md-3 mt-3 mt-md-0">
-                    <button type="submit" class="btn w-100 fw-bold shadow-sm" style="background-color: var(--pct-primary); color: white; height: 48px; border-radius: 12px;">
-                        <i class="fa-solid fa-filter me-1"></i> ประมวลผล
-                    </button>
-                </div>
-                <?php if ($filter_start_date !== '' || $filter_end_date !== ''): ?>
-                <div class="col-12 col-md-3 mt-2 mt-md-0">
-                    <a href="indexPCT.php" class="btn btn-light w-100 border fw-bold shadow-sm" style="height: 48px; border-radius: 12px; color: var(--pct-text-light);">
-                        <i class="fa-solid fa-rotate-left me-1"></i> ล้างค่า
-                    </a>
-                </div>
-                <?php endif; ?>
-            </form>
-
             <div class="row g-3 g-md-4 mb-4">
                 <div class="col-6 col-md-3">
                     <div class="kpi-card" onclick="openActiveCasesModal()" style="cursor:pointer;" title="คลิกดูรายชื่อผู้ป่วยกำลังรักษา">
@@ -2483,6 +2479,21 @@ if ($is_viewer) {
                 },
                 cutout: '65%'
             }
+        });
+    });
+
+    document.querySelectorAll('#pctMainTabs [data-bs-toggle="tab"]').forEach(tabButton => {
+        tabButton.addEventListener('shown.bs.tab', event => {
+            const targetSelector = event.target.getAttribute('data-bs-target');
+            const activeTab = targetSelector ? document.querySelector(targetSelector) : null;
+            if (!activeTab) return;
+
+            requestAnimationFrame(() => {
+                activeTab.querySelectorAll('.chart-heat-type, .chart-heat-month, .chart-person-type').forEach(canvas => {
+                    const chart = Chart.getChart(canvas);
+                    if (chart) chart.resize();
+                });
+            });
         });
     });
 
