@@ -148,14 +148,17 @@ $sql_list = "SELECT
                 (SELECT COUNT(*) FROM gp_details WHERE case_id = p.id) as gp_record_count,
                 (SELECT FstDx FROM gp_details WHERE case_id = p.id ORDER BY id DESC LIMIT 1) as gp_dx,
                 (SELECT disposition FROM gp_details WHERE case_id = p.id ORDER BY id DESC LIMIT 1) as gp_disposition,
+                (SELECT recorded_at FROM gp_details WHERE case_id = p.id ORDER BY id DESC LIMIT 1) as gp_recorded_at,
                 (SELECT COUNT(*) FROM er_details WHERE case_id = p.id) as er_record_count,
                 (SELECT FstDx FROM er_details WHERE case_id = p.id ORDER BY id DESC LIMIT 1) as er_dx,
                 (SELECT disposition FROM er_details WHERE case_id = p.id ORDER BY id DESC LIMIT 1) as er_status,
                 (SELECT admit_type FROM er_details WHERE case_id = p.id ORDER BY id DESC LIMIT 1) as er_admit_type,
                 (SELECT hospital_arrival_datetime FROM er_details WHERE case_id = p.id ORDER BY id DESC LIMIT 1) as hospital_arrival_datetime,
+                (SELECT recorded_at FROM er_details WHERE case_id = p.id ORDER BY id DESC LIMIT 1) as er_recorded_at,
                 w.admit_type as last_ward_type,
                 w.status as last_ward_status,
                 w.discharge_status as last_ward_dc_status,
+                COALESCE(w.discharge_date, w.admit_date) as last_ward_event_at,
                 w.id as last_ward_id,
                 w.an as an,
                 w.final_diagnosis, w.icu_diagnosis, w.initial_diagnosis,
@@ -257,6 +260,13 @@ foreach($depts as $d) {
 // ---------------------------------------------------------------------------
 // 🔄 ประมวลผลข้อมูล (Loop)
 // ---------------------------------------------------------------------------
+$get_disposition_stats_status = static function($disposition) {
+    if ($disposition === 'Dead') return 'dead';
+    if ($disposition === 'Refer') return 'refer';
+    if ($disposition === 'Discharge') return 'dc';
+    return 'wait';
+};
+
 foreach($all_cases as $row) {
     $arrival_datetime = $row['hospital_arrival_datetime'] ?? '';
     $arrival_time = (!empty($arrival_datetime) && $arrival_datetime !== '0000-00-00 00:00:00')
@@ -274,6 +284,43 @@ foreach($all_cases as $row) {
     $w_type = $row['last_ward_type'] ?? '';
     $e_stat = $row['er_status'] ?? '';
     $w_dc_stat = $row['last_ward_dc_status'] ?? '';
+
+    $latest_case_status = 'wait';
+    $latest_case_event_time = 0;
+    $case_status_events = [];
+    if ((int)($row['gp_record_count'] ?? 0) > 0) {
+        $case_status_events[] = [
+            'time' => strtotime($row['gp_recorded_at'] ?? '') ?: 0,
+            'status' => $get_disposition_stats_status($row['gp_disposition'] ?? ''),
+        ];
+    }
+    if ((int)($row['er_record_count'] ?? 0) > 0) {
+        $case_status_events[] = [
+            'time' => strtotime($row['er_recorded_at'] ?? '') ?: 0,
+            'status' => $get_disposition_stats_status($e_stat),
+        ];
+    }
+    if (!empty($row['last_ward_id'])) {
+        $ward_status = null;
+        if ($w_stat === 'Active') $ward_status = 'admit';
+        elseif ($w_stat === 'AdmitWait') $ward_status = 'wait';
+        elseif ($w_stat === 'Dead' || ($w_stat === 'Discharged' && $w_dc_stat === 'Dead')) $ward_status = 'dead';
+        elseif ($w_stat === 'Refer' || ($w_stat === 'Discharged' && $w_dc_stat === 'Refer')) $ward_status = 'refer';
+        elseif ($w_stat === 'Discharged') $ward_status = 'dc';
+
+        if ($ward_status !== null) {
+            $case_status_events[] = [
+                'time' => strtotime($row['last_ward_event_at'] ?? '') ?: 0,
+                'status' => $ward_status,
+            ];
+        }
+    }
+    foreach ($case_status_events as $event) {
+        if ($event['time'] >= $latest_case_event_time) {
+            $latest_case_event_time = $event['time'];
+            $latest_case_status = $event['status'];
+        }
+    }
 
     $assigned_depts = [];
     if ((int)($row['gp_record_count'] ?? 0) > 0) {
@@ -395,30 +442,8 @@ foreach($all_cases as $row) {
             ];
             if ($dept_is_heat_case) $dept_stats[$d]['heat_by_month'][$dept_matched_dx][$pt_m]++;
         }
-        if ($d === 'GP' && ($row['gp_disposition'] ?? '') === 'Dead') {
-            $dept_stats[$d]['dead']++;
-        } elseif ($d === 'GP' && ($row['gp_disposition'] ?? '') === 'Refer') {
-            $dept_stats[$d]['refer']++;
-        } elseif ($d === 'GP' && ($row['gp_disposition'] ?? '') === 'Discharge') {
-            $dept_stats[$d]['dc']++;
-        } elseif ($d === 'ER' && $e_stat === 'Dead') {
-            $dept_stats[$d]['dead']++;
-        } elseif ($d === 'ER' && $e_stat === 'Refer') {
-            $dept_stats[$d]['refer']++;
-        } elseif ($d === 'ER' && $e_stat === 'Discharge') {
-            $dept_stats[$d]['dc']++;
-        } elseif (in_array($d, ['ICU', 'RCU', 'A4', 'B3'], true) && $w_stat === 'Active') {
-            $dept_stats[$d]['admit']++;
-        } elseif (in_array($d, ['ICU', 'RCU', 'A4', 'B3'], true) && $w_stat === 'Dead') {
-            $dept_stats[$d]['dead']++;
-        } elseif (in_array($d, ['ICU', 'RCU', 'A4', 'B3'], true) && $w_stat === 'Refer') {
-            $dept_stats[$d]['refer']++;
-        } elseif (in_array($d, ['ICU', 'RCU', 'A4', 'B3'], true) && $w_stat === 'Discharged' && $w_dc_stat === 'Dead') {
-            $dept_stats[$d]['dead']++;
-        } elseif (in_array($d, ['ICU', 'RCU', 'A4', 'B3'], true) && ($w_stat === 'Refer' || ($w_stat === 'Discharged' && $w_dc_stat === 'Refer'))) {
-            $dept_stats[$d]['refer']++;
-        } elseif (in_array($d, ['ICU', 'RCU', 'A4', 'B3'], true) && $w_stat === 'Discharged') {
-            $dept_stats[$d]['dc']++;
+        if (in_array($d, ['GP', 'ER', 'ICU', 'RCU', 'A4', 'B3'], true)) {
+            $dept_stats[$d][$latest_case_status]++;
         } elseif ($d === 'MED' && (int)($row['med_record_count'] ?? 0) > 0) {
             $dept_stats[$d]['dc']++;
         } elseif ($d === 'PMR' && (int)($row['pmr_record_count'] ?? 0) > 0) {
@@ -429,8 +454,6 @@ foreach($all_cases as $row) {
             elseif (getSeverityCategory($best_dx) === 'Moderate') $pcu_required = 1;
             if ((int)($row['pcu_count'] ?? 0) >= $pcu_required) $dept_stats[$d]['dc']++;
             else $dept_stats[$d]['wait']++;
-        } elseif ($d === 'GP' || $d === 'ER' || in_array($d, ['ICU', 'RCU', 'A4', 'B3'], true)) {
-            $dept_stats[$d]['wait']++;
         } else {
             $dept_stats[$d]['wait']++;
         }
