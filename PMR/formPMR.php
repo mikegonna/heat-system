@@ -308,20 +308,15 @@ if (!empty($patient['weight']) && !empty($patient['height'])) {
                                 </label>
                                 <div class="disposition-row RTE-options">
                                     <div class="disposition-option dis-discharge">
-                                        <input type="radio" id="pmr_RTE_yes" name="RTE" value="1" required <?php echo $is_read_only ? 'disabled' : ''; ?>>
+                                        <input type="radio" id="pmr_RTE_yes" name="rte" value="1" required <?php echo $is_read_only ? 'disabled' : ''; ?>>
                                         <label for="pmr_RTE_yes"><i class="fa-solid fa-person-running"></i>ใช่</label>
                                     </div>
                                     <div class="disposition-option dis-admit">
-                                        <input type="radio" id="pmr_RTE_no" name="RTE" value="0" <?php echo $is_read_only ? 'disabled' : ''; ?>>
+                                        <input type="radio" id="pmr_RTE_no" name="rte" value="0" <?php echo $is_read_only ? 'disabled' : ''; ?>>
                                         <label for="pmr_RTE_no"><i class="fa-solid fa-ban"></i>ยังไม่ใช่</label>
                                     </div>
                                 </div>
                             </div>
-
-                            <!-- <div class="mb-4 p-3 bg-theme-light rounded-3 border" style="border-color: var(--v-primary) !important;">
-                                <label class="form-label text-theme fw-bold"><i class="fa-regular fa-calendar-plus me-2"></i>วันที่นัด PMR ครั้งถัดไป</label>
-                                <input type="date" name="next_pmr_date" id="next_pmr_date" class="form-control bg-white shadow-sm" <?php echo $is_read_only ? 'disabled' : ''; ?>>
-                            </div> -->
 
                             <div class="mb-4">
                                 <label class="form-label fw-bold border-bottom pb-2 w-100 mb-3 text-theme fs-5"><i class="fa-solid fa-notes-medical me-2"></i>บันทึกเพิ่มเติม (Progress Note)</label>

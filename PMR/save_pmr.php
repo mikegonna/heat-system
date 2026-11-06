@@ -20,7 +20,7 @@ $fuDate = normalizeOccDateTime($_POST['fu_date'] ?? null);
 $recordDate = normalizeOccDateTime($_POST['record_datetime'] ?? null);
 $rteValue = $_POST['rte'] ?? null;
 $rte = is_string($rteValue) && in_array($rteValue, ['0', '1'], true) ? (int)$rteValue : null;
-$nextPmrDate = empty($_POST['next_pmr_date']) ? null : normalizePmrDate($_POST['next_pmr_date']);
+$nextPmrDate = null;
 $note = is_string($_POST['pmr_note'] ?? null) ? trim($_POST['pmr_note']) : '';
 $recorderName = is_string($_POST['recorder_name'] ?? null) ? trim($_POST['recorder_name']) : '';
 $redirect = 'Location: formPMR.php?hn=' . urlencode($hn) . '&an=' . urlencode($an);
@@ -32,7 +32,6 @@ if (
     || !$fuDate
     || !$recordDate
     || $rte === null
-    || (!empty($_POST['next_pmr_date']) && !$nextPmrDate)
     || $recorderName === ''
 ) {
     $_SESSION['statusType'] = 'error';
@@ -80,7 +79,7 @@ if (!$status) {
 }
 
 $stmt = $conn->prepare(
-    'INSERT INTO pmr_records (hn, an, pmr_status, rte, next_pmr_date, pmr_note, recorder_name, fu_date, record_datetime)
+    'INSERT INTO pmr_records (hn, an, pmr_status, RTE, next_pmr_date, pmr_note, recorder_name, fu_date, record_datetime)
      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)'
 );
 if (!$stmt) {
