@@ -34,6 +34,15 @@
             if (!statusInput) return;
 
             const statusRadios = form.querySelectorAll('[data-occ-status-value]');
+            const statusMessage = form.querySelector('[data-occ-status-message]');
+            function showStatus(message, isOnTime) {
+                if (!statusMessage) return;
+                statusMessage.textContent = message;
+                statusMessage.className = message
+                    ? 'small fw-semibold mt-2 ' + (isOnTime ? 'text-success' : 'text-danger')
+                    : 'small fw-semibold mt-2';
+            }
+
             function updateStatus() {
                 const followupValue = followupInput.value;
                 const dischargeValue = followupInput.dataset.dischargeDate || '';
@@ -41,15 +50,40 @@
                     followupInput.setCustomValidity('');
                     statusInput.value = '';
                     statusRadios.forEach(function (radio) { radio.checked = false; });
+                    showStatus('', false);
                     return;
                 }
 
                 const followupTime = parseWallClock(followupValue);
+                if (followupInput.hasAttribute('data-next-appointment-date')) {
+                    const nextAppointmentDate = followupInput.dataset.nextAppointmentDate || '';
+                    const nextAppointmentTime = parseWallClock(nextAppointmentDate + 'T00:00');
+                    if (!Number.isFinite(followupTime) || !Number.isFinite(nextAppointmentTime)) {
+                        followupInput.setCustomValidity('ไม่พบวันที่นัด PMR ครั้งถัดไปหรือวันที่ Follow-up ที่ถูกต้อง');
+                        statusInput.value = '';
+                        statusRadios.forEach(function (radio) { radio.checked = false; });
+                        showStatus('ไม่พบวันที่นัดครั้งก่อนที่ถูกต้อง จึงคำนวณสถานะไม่ได้', false);
+                        return;
+                    }
+
+                    followupInput.setCustomValidity('');
+                    const status = followupValue.slice(0, 10) <= nextAppointmentDate
+                        ? 'มาตรงนัด'
+                        : 'มาไม่ตรงนัด';
+                    statusInput.value = status;
+                    statusRadios.forEach(function (radio) {
+                        radio.checked = radio.dataset.occStatusValue === status;
+                    });
+                    showStatus(status, status === 'มาตรงนัด');
+                    return;
+                }
+
                 const dischargeTime = parseWallClock(dischargeValue);
                 if (!Number.isFinite(followupTime) || !Number.isFinite(dischargeTime)) {
                     followupInput.setCustomValidity('ไม่พบวันที่จำหน่ายหรือวันที่ Follow-up ที่ถูกต้อง');
                     statusInput.value = '';
                     statusRadios.forEach(function (radio) { radio.checked = false; });
+                    showStatus('ไม่พบวันที่จำหน่ายหรือวันที่ Follow-up ที่ถูกต้อง จึงคำนวณสถานะไม่ได้', false);
                     return;
                 }
 
@@ -57,6 +91,7 @@
                     followupInput.setCustomValidity('วันที่ Follow-up ต้องไม่ก่อนวันจำหน่าย');
                     statusInput.value = '';
                     statusRadios.forEach(function (radio) { radio.checked = false; });
+                    showStatus('วันที่ Follow-up ต้องไม่ก่อนวันจำหน่าย', false);
                     return;
                 }
 
@@ -68,6 +103,7 @@
                 statusRadios.forEach(function (radio) {
                     radio.checked = radio.dataset.occStatusValue === status;
                 });
+                showStatus(status, status === 'มาตรงนัด');
             }
 
             followupInput.addEventListener('change', updateStatus);

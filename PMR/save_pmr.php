@@ -20,7 +20,7 @@ $fuDate = normalizeOccDateTime($_POST['fu_date'] ?? null);
 $recordDate = normalizeOccDateTime($_POST['record_datetime'] ?? null);
 $rteValue = $_POST['rte'] ?? null;
 $rte = is_string($rteValue) && in_array($rteValue, ['0', '1'], true) ? (int)$rteValue : null;
-$nextPmrDate = null;
+$nextPmrDate = empty($_POST['next_pmr_date']) ? null : normalizePmrDate($_POST['next_pmr_date']);
 $note = is_string($_POST['pmr_note'] ?? null) ? trim($_POST['pmr_note']) : '';
 $recorderName = is_string($_POST['recorder_name'] ?? null) ? trim($_POST['recorder_name']) : '';
 $redirect = 'Location: formPMR.php?hn=' . urlencode($hn) . '&an=' . urlencode($an);
@@ -32,6 +32,7 @@ if (
     || !$fuDate
     || !$recordDate
     || $rte === null
+    || (!empty($_POST['next_pmr_date']) && !$nextPmrDate)
     || $recorderName === ''
 ) {
     $_SESSION['statusType'] = 'error';
@@ -70,10 +71,37 @@ if (!$case || $case['status_case'] === 'Closed') {
     exit();
 }
 
-$status = getOccFollowupStatus($_POST['fu_date'] ?? null, $case['discharge_date'] ?? null);
+$previousStmt = $conn->prepare(
+    'SELECT next_pmr_date
+     FROM pmr_records
+     WHERE hn = ? AND an = ?
+     ORDER BY record_datetime DESC, id DESC
+     LIMIT 1'
+);
+if (!$previousStmt) {
+    error_log('Failed to prepare previous PMR appointment lookup: ' . $conn->error);
+    http_response_code(500);
+    exit('ไม่สามารถตรวจสอบวันนัด PMR ก่อนหน้าได้');
+}
+$previousStmt->bind_param('ss', $hn, $an);
+if (!$previousStmt->execute()) {
+    error_log('Failed to execute previous PMR appointment lookup: ' . $previousStmt->error);
+    $previousStmt->close();
+    http_response_code(500);
+    exit('ไม่สามารถตรวจสอบวันนัด PMR ก่อนหน้าได้');
+}
+$previousRecord = $previousStmt->get_result()->fetch_assoc();
+$previousStmt->close();
+$isFirstAppointment = !$previousRecord;
+$referenceDate = $isFirstAppointment
+    ? ($case['discharge_date'] ?? null)
+    : ($previousRecord['next_pmr_date'] ?? null);
+$status = getPmrFollowupStatus($_POST['fu_date'] ?? null, $referenceDate, $isFirstAppointment);
 if (!$status) {
     $_SESSION['statusType'] = 'error';
-    $_SESSION['statusMsg'] = 'กรุณาระบุวันที่ Follow-up ที่ไม่ก่อนวันจำหน่าย และตรวจสอบวันจำหน่ายของเคส';
+    $_SESSION['statusMsg'] = !$isFirstAppointment && empty($referenceDate)
+        ? 'ไม่พบวันที่นัดครั้งถัดไปในบันทึก PMR ก่อนหน้า กรุณาแก้ไขบันทึกก่อนจึงจะบันทึกครั้งนี้ได้'
+        : 'กรุณาตรวจสอบวันที่ Follow-up และวันนัด PMR ก่อนหน้า';
     header($redirect);
     exit();
 }

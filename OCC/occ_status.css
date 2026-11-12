@@ -43,6 +43,18 @@
     cursor: pointer;
 }
 
+.rte-options .disposition-option input:not(:disabled) + label:hover {
+    border-color: #8b5cf6;
+    background: #f5f3ff;
+    color: #6d28d9;
+    box-shadow: 0 3px 10px rgba(139, 92, 246, 0.14);
+}
+
+.rte-options .disposition-option input:disabled + label {
+    cursor: not-allowed;
+    opacity: 0.65;
+}
+
 .disposition-option input:checked + label {
     border-color: #059669;
     color: #fff;

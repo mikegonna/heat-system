@@ -12,6 +12,7 @@ $an = is_string($_GET['an'] ?? null) ? trim($_GET['an']) : '';
 $patient = null;
 $history = null;
 $track_count = 0;
+$latest_pmr_record = null;
 
 // ตรวจสอบค่า HN และ AN
 if ($hn && $an) {
@@ -35,12 +36,16 @@ if ($hn && $an) {
     $stmt->close();
 
     // ดึงประวัติ PMR
-    $sqlHist = "SELECT * FROM pmr_records WHERE hn = ? AND an = ? ORDER BY record_datetime DESC";
+    $sqlHist = "SELECT * FROM pmr_records WHERE hn = ? AND an = ? ORDER BY record_datetime DESC, id DESC";
     $stmtH = $conn->prepare($sqlHist);
     $stmtH->bind_param("ss", $hn, $an);
     $stmtH->execute();
     $history = $stmtH->get_result();
     $track_count = $history->num_rows;
+    if ($track_count > 0) {
+        $latest_pmr_record = $history->fetch_assoc();
+        $history->data_seek(0);
+    }
 }
 
 $is_discharged = ($patient && $patient['status'] === 'Discharged');
@@ -281,13 +286,23 @@ if (!empty($patient['weight']) && !empty($patient['height'])) {
                                 <label class="form-label fw-bold border-bottom pb-2 w-100 mb-3 text-theme fs-5">
                                     <i class="fa-solid fa-calendar-days me-2"></i>วันที่และเวลาที่มา Follow-up <span class="text-danger">*</span>
                                 </label>
-                                <input type="datetime-local" name="fu_date" id="pmr_fu_date" class="form-control shadow-sm" data-occ-followup-date data-discharge-date="<?php echo htmlspecialchars((string)($patient['discharge_date'] ?? ''), ENT_QUOTES, 'UTF-8'); ?>" required <?php echo $is_read_only ? 'disabled' : ''; ?>>
-                                <div class="form-text">ระบบคำนวณสถานะจากวันที่จำหน่าย: ภายใน 14 วัน = มาตรงนัด, เกิน 14 วัน = มาไม่ตรงนัด</div>
+                                <input type="datetime-local" name="fu_date" id="pmr_fu_date" class="form-control shadow-sm" data-occ-followup-date <?php if ($latest_pmr_record): ?>data-next-appointment-date="<?php echo htmlspecialchars((string)($latest_pmr_record['next_pmr_date'] ?? ''), ENT_QUOTES, 'UTF-8'); ?>"<?php else: ?>data-discharge-date="<?php echo htmlspecialchars((string)($patient['discharge_date'] ?? ''), ENT_QUOTES, 'UTF-8'); ?>"<?php endif; ?> required <?php echo $is_read_only ? 'disabled' : ''; ?>>
+                                <div class="form-text">
+                                    <?php if ($latest_pmr_record): ?>
+                                        <?php if (!empty($latest_pmr_record['next_pmr_date'])): ?>
+                                            คำนวณจากวันนัดครั้งถัดไปของบันทึกก่อนหน้า: มาตรงวันนัดหรือมาก่อน = มาตรงนัด, มาหลังวันนัด = มาไม่ตรงนัด
+                                        <?php else: ?>
+                                            ไม่พบวันที่นัดครั้งถัดไปในบันทึกก่อนหน้า กรุณาแก้ไขบันทึกก่อนจึงจะบันทึกครั้งนี้ได้
+                                        <?php endif; ?>
+                                    <?php else: ?>
+                                        นัดครั้งแรกคำนวณจากวันจำหน่าย: ภายใน 14 วัน = มาตรงนัด, เกิน 14 วัน = มาไม่ตรงนัด
+                                    <?php endif; ?>
+                                </div>
                             </div>
 
                             <div class="mb-4">
                                 <label class="form-label fw-bold border-bottom pb-2 w-100 mb-3 text-theme fs-5">
-                                    <i class="fa-solid fa-list-check me-2"></i>ผลการฟื้นฟูผู้ป่วย
+                                    <i class="fa-solid fa-list-check me-2"></i>สถานะการติดตามผล (Disposition Status)
                                 </label>
                                 <input type="hidden" id="pmr_status" name="pmr_status" data-occ-status>
                                 <div class="disposition-row">
@@ -300,13 +315,14 @@ if (!empty($patient['weight']) && !empty($patient['height'])) {
                                         <label for="pmr_late"><i class="fa-solid fa-circle-xmark"></i>มาไม่ตรงนัด</label>
                                     </div>
                                 </div>
+                                <!-- <div data-occ-status-message class="small fw-semibold mt-2" aria-live="polite"></div> -->
                             </div>
 
                             <div class="mb-4">
                                 <label class="form-label fw-bold border-bottom pb-2 w-100 mb-3 text-theme fs-5">
                                     <i class="fa-solid fa-person-running me-2"></i>Return to Exercise (RTE) <span class="text-danger">*</span>
                                 </label>
-                                <div class="disposition-row RTE-options">
+                                <div class="disposition-row rte-options">
                                     <div class="disposition-option dis-discharge">
                                         <input type="radio" id="pmr_RTE_yes" name="rte" value="1" required <?php echo $is_read_only ? 'disabled' : ''; ?>>
                                         <label for="pmr_RTE_yes"><i class="fa-solid fa-person-running"></i>ใช่</label>
@@ -316,6 +332,13 @@ if (!empty($patient['weight']) && !empty($patient['height'])) {
                                         <label for="pmr_RTE_no"><i class="fa-solid fa-ban"></i>ยังไม่ใช่</label>
                                     </div>
                                 </div>
+                            </div>
+
+                            <div class="mb-4">
+                                <label for="next_pmr_date" class="form-label fw-bold border-bottom pb-2 w-100 mb-3 text-theme fs-5">
+                                    <i class="fa-regular fa-calendar-plus me-2"></i>วันที่นัด PMR ครั้งถัดไป
+                                </label>
+                                <input type="date" id="next_pmr_date" name="next_pmr_date" class="form-control shadow-sm" <?php echo $is_read_only ? 'disabled' : ''; ?>>
                             </div>
 
                             <div class="mb-4">

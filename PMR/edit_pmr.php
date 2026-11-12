@@ -49,6 +49,31 @@ if (!$record) {
     http_response_code(404);
     exit('ไม่พบรายการ PMR');
 }
+
+$previousStmt = $conn->prepare(
+    'SELECT next_pmr_date
+     FROM pmr_records
+     WHERE hn = ? AND an = ?
+       AND (record_datetime < ? OR (record_datetime = ? AND id < ?))
+     ORDER BY record_datetime DESC, id DESC
+     LIMIT 1'
+);
+if (!$previousStmt) {
+    error_log('Failed to prepare previous PMR appointment lookup: ' . $conn->error);
+    http_response_code(500);
+    exit('ไม่สามารถตรวจสอบวันนัด PMR ก่อนหน้าได้');
+}
+$previousStmt->bind_param('ssssi', $record['hn'], $record['an'], $record['record_datetime'], $record['record_datetime'], $id);
+if (!$previousStmt->execute()) {
+    error_log('Failed to execute previous PMR appointment lookup: ' . $previousStmt->error);
+    $previousStmt->close();
+    http_response_code(500);
+    exit('ไม่สามารถตรวจสอบวันนัด PMR ก่อนหน้าได้');
+}
+$previousPmrRecord = $previousStmt->get_result()->fetch_assoc();
+$previousStmt->close();
+$isFirstAppointment = !$previousPmrRecord;
+
 $isCaseClosed = $record['status_case'] === 'Closed';
 $isModalRequest = ($_GET['modal'] ?? '') === '1';
 $backUrl = 'formPMR.php?hn=' . urlencode($record['hn']) . '&an=' . urlencode($record['an']);
@@ -104,8 +129,16 @@ $updateUrl = rtrim(str_replace('\\', '/', dirname($_SERVER['SCRIPT_NAME'] ?? '/P
                 <input type="hidden" name="an" value="<?php echo htmlspecialchars((string)$record['an'], ENT_QUOTES, 'UTF-8'); ?>">
                 <div class="mb-3">
                     <label for="pmr_fu_date" class="form-label fw-bold">วันที่และเวลาที่มา Follow-up <span class="text-danger">*</span></label>
-                    <input type="datetime-local" id="pmr_fu_date" name="fu_date" class="form-control" data-occ-followup-date data-discharge-date="<?php echo htmlspecialchars((string)($record['discharge_date'] ?? ''), ENT_QUOTES, 'UTF-8'); ?>" value="<?php echo !empty($record['fu_date']) ? date('Y-m-d\TH:i', strtotime($record['fu_date'])) : ''; ?>" required <?php echo $isCaseClosed ? 'disabled' : ''; ?>>
-                    <div class="form-text">ระบบคำนวณสถานะจากวันที่จำหน่าย: ภายใน 14 วัน = มาตรงนัด, เกิน 14 วัน = มาไม่ตรงนัด</div>
+                    <input type="datetime-local" id="pmr_fu_date" name="fu_date" class="form-control" data-occ-followup-date <?php if ($isFirstAppointment): ?>data-discharge-date="<?php echo htmlspecialchars((string)($record['discharge_date'] ?? ''), ENT_QUOTES, 'UTF-8'); ?>"<?php else: ?>data-next-appointment-date="<?php echo htmlspecialchars((string)($previousPmrRecord['next_pmr_date'] ?? ''), ENT_QUOTES, 'UTF-8'); ?>"<?php endif; ?> value="<?php echo !empty($record['fu_date']) ? date('Y-m-d\TH:i', strtotime($record['fu_date'])) : ''; ?>" required <?php echo $isCaseClosed ? 'disabled' : ''; ?>>
+                    <div class="form-text">
+                        <?php if ($isFirstAppointment): ?>
+                            นัดครั้งแรกคำนวณจากวันจำหน่าย: ภายใน 14 วัน = มาตรงนัด, เกิน 14 วัน = มาไม่ตรงนัด
+                        <?php elseif (!empty($previousPmrRecord['next_pmr_date'])): ?>
+                            คำนวณจากวันนัดครั้งถัดไปของบันทึกก่อนหน้า: มาตรงวันนัดหรือมาก่อน = มาตรงนัด, มาหลังวันนัด = มาไม่ตรงนัด
+                        <?php else: ?>
+                            ไม่พบวันที่นัดครั้งถัดไปในบันทึกก่อนหน้า กรุณาแก้ไขบันทึกก่อนจึงจะบันทึกครั้งนี้ได้
+                        <?php endif; ?>
+                    </div>
                 </div>
                 <div class="mb-3">
                     <label class="form-label fw-bold border-bottom pb-2 w-100 mb-3 text-theme fs-5"><i class="fa-solid fa-list-check me-2"></i>ผลการฟื้นฟูผู้ป่วย</label>
@@ -120,7 +153,8 @@ $updateUrl = rtrim(str_replace('\\', '/', dirname($_SERVER['SCRIPT_NAME'] ?? '/P
                             <label for="pmr_edit_late"><i class="fa-solid fa-circle-xmark"></i>มาไม่ตรงนัด</label>
                         </div>
                     </div>
-                </div>
+                    <div data-occ-status-message class="small fw-semibold mt-2" aria-live="polite"></div>
+                    </div>
                 <div class="mb-3">
                     <label class="form-label fw-bold">Return to Exercise (RTE) <span class="text-danger">*</span></label>
                     <div class="disposition-row rte-options">
@@ -134,10 +168,10 @@ $updateUrl = rtrim(str_replace('\\', '/', dirname($_SERVER['SCRIPT_NAME'] ?? '/P
                         </div>
                     </div>
                 </div>
-                <!-- <div class="mb-3">
+                <div class="mb-3">
                     <label for="next_pmr_date" class="form-label fw-bold">วันที่นัด PMR ครั้งถัดไป</label>
                     <input type="date" id="next_pmr_date" name="next_pmr_date" class="form-control" value="<?php echo htmlspecialchars((string)($record['next_pmr_date'] ?? ''), ENT_QUOTES, 'UTF-8'); ?>" <?php echo $isCaseClosed ? 'disabled' : ''; ?>>
-                </div> -->
+                </div>
                 <div class="mb-3">
                     <label for="pmr_note" class="form-label fw-bold">บันทึกเพิ่มเติม</label>
                     <textarea id="pmr_note" name="pmr_note" class="form-control" rows="4" <?php echo $isCaseClosed ? 'disabled' : ''; ?>><?php echo htmlspecialchars((string)$record['pmr_note'], ENT_QUOTES, 'UTF-8'); ?></textarea>

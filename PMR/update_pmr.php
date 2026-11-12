@@ -64,7 +64,7 @@ if (
 }
 
 $caseStmt = $conn->prepare(
-    'SELECT c.status_case, w.discharge_date
+    'SELECT c.status_case, w.discharge_date, p.record_datetime
      FROM pmr_records p
      JOIN ward_details w ON w.an = p.an
      JOIN cases c ON c.id = w.case_id AND c.hn = p.hn
@@ -89,9 +89,36 @@ if (!$case || $case['status_case'] === 'Closed') {
     $respond(false, !$case ? 'ไม่พบรายการ PMR ที่ต้องการแก้ไข' : 'ไม่สามารถแก้ไขได้ เนื่องจากเคสถูกปิดแล้ว', !$case ? 404 : 422);
 }
 
-$status = getOccFollowupStatus($_POST['fu_date'] ?? null, $case['discharge_date'] ?? null);
+$previousStmt = $conn->prepare(
+    'SELECT next_pmr_date
+     FROM pmr_records
+     WHERE hn = ? AND an = ?
+       AND (record_datetime < ? OR (record_datetime = ? AND id < ?))
+     ORDER BY record_datetime DESC, id DESC
+     LIMIT 1'
+);
+if (!$previousStmt) {
+    error_log('Failed to prepare previous PMR appointment lookup: ' . $conn->error);
+    $respond(false, 'ไม่สามารถตรวจสอบวันนัด PMR ก่อนหน้าได้', 500);
+}
+$previousStmt->bind_param('ssssi', $hn, $an, $case['record_datetime'], $case['record_datetime'], $id);
+if (!$previousStmt->execute()) {
+    error_log('Failed to execute previous PMR appointment lookup: ' . $previousStmt->error);
+    $previousStmt->close();
+    $respond(false, 'ไม่สามารถตรวจสอบวันนัด PMR ก่อนหน้าได้', 500);
+}
+$previousRecord = $previousStmt->get_result()->fetch_assoc();
+$previousStmt->close();
+$isFirstAppointment = !$previousRecord;
+$referenceDate = $isFirstAppointment
+    ? ($case['discharge_date'] ?? null)
+    : ($previousRecord['next_pmr_date'] ?? null);
+$status = getPmrFollowupStatus($_POST['fu_date'] ?? null, $referenceDate, $isFirstAppointment);
 if (!$status) {
-    $respond(false, 'กรุณาระบุวันที่ Follow-up ที่ไม่ก่อนวันจำหน่าย และตรวจสอบวันจำหน่ายของเคส', 422);
+    $message = !$isFirstAppointment && empty($referenceDate)
+        ? 'ไม่พบวันที่นัดครั้งถัดไปในบันทึก PMR ก่อนหน้า กรุณาแก้ไขบันทึกก่อนจึงจะบันทึกครั้งนี้ได้'
+        : 'กรุณาตรวจสอบวันที่ Follow-up และวันนัด PMR ก่อนหน้า';
+    $respond(false, $message, 422);
 }
 
 $stmt = $conn->prepare(

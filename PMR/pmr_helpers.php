@@ -26,3 +26,20 @@ function normalizePmrDate($value)
 
     return $date->format('Y-m-d');
 }
+
+function getPmrFollowupStatus($followupDate, $referenceDate, $isFirstAppointment)
+{
+    if ($isFirstAppointment) {
+        return getOccFollowupStatus($followupDate, $referenceDate);
+    }
+
+    $followup = normalizeOccDateTime($followupDate);
+    $nextAppointmentDate = normalizePmrDate($referenceDate);
+    if (!$followup || !$nextAppointmentDate) {
+        return null;
+    }
+
+    return substr($followup, 0, 10) <= $nextAppointmentDate
+        ? 'มาตรงนัด'
+        : 'มาไม่ตรงนัด';
+}
