@@ -108,7 +108,14 @@ $baseWait = "FROM ward_details w
              AND EXISTS (SELECT 1 FROM ward_progress_notes wpn
                          WHERE wpn.ward_detail_id = w.id
                          AND wpn.treatment_result LIKE 'Discharge%')
-             AND (SELECT COUNT(*) FROM pmr_records pr WHERE pr.an = w.an) = 0
+             AND (
+                 (SELECT COUNT(*) FROM pmr_records pr WHERE pr.an = w.an) = 0
+                 OR (SELECT pr.next_pmr_date
+                     FROM pmr_records pr
+                     WHERE pr.an = w.an
+                     ORDER BY pr.record_datetime DESC, pr.id DESC
+                     LIMIT 1) IS NOT NULL
+             )
              $filterSQL";
 
 $qCountWait = $conn->query("SELECT COUNT(DISTINCT w.id) as total_w " . $baseWait);
@@ -119,7 +126,12 @@ $sqlWait = "SELECT w.case_id, w.an, w.discharge_date, w.status as ward_status, w
                c.hn as hn, c.patient_name, c.age, c.phone, c.department, c.person_type,
                e.cause_factor, e.risk_factors, e.FstDx as er_dx, e.recorded_at as er_time,
                w.icu_diagnosis, w.final_diagnosis, w.initial_diagnosis,
-               (SELECT COUNT(*) FROM pmr_records pr WHERE pr.an = w.an) as track_count
+               (SELECT COUNT(*) FROM pmr_records pr WHERE pr.an = w.an) as track_count,
+               (SELECT pr.next_pmr_date
+                FROM pmr_records pr
+                WHERE pr.an = w.an
+                ORDER BY pr.record_datetime DESC, pr.id DESC
+                LIMIT 1) as latest_next_date
             $baseWait
             GROUP BY w.id
             ORDER BY w.discharge_date DESC
@@ -449,6 +461,9 @@ function getPaginationUrl($tab, $page_w, $page_h, $search, $start_date, $end_dat
                                             $status_badge = '<div class="st-badge bg-warning text-dark shake-alert mt-2"><i class="fa-solid fa-clock me-1"></i> รอรับฟื้นฟูครั้งแรก</div>';
                                         } else {
                                             $status_badge = '<div class="st-badge bg-info text-dark mt-2"><i class="fa-solid fa-user-doctor me-1"></i> บันทึกแล้ว ('.$t_count.' ครั้ง)</div>';
+                                            if (!empty($row['latest_next_date'])) {
+                                                $status_badge .= '<div class="st-badge bg-warning text-dark mt-2"><i class="fa-regular fa-calendar-plus me-1"></i> นัดครั้งถัดไป: ' . date('d/m/Y', strtotime($row['latest_next_date'])) . '</div>';
+                                            }
                                         }
                                     ?>
                                     <tr>
