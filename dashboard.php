@@ -421,10 +421,8 @@ elseif ($is_visit) {
                     AND IFNULL(w.discharge_status, '') NOT IN ('Dead', 'Refer')
                     AND DATE(COALESCE(w.admit_date, e.hospital_arrival_datetime, gp.hospital_arrival_datetime)) BETWEEN '$start_date' AND '$end_date'
                     AND (e.id IS NOT NULL OR w.id IS NOT NULL)
-                    AND (
-                        (w.id IS NOT NULL AND w.status = 'Discharged')
-                        OR (w.id IS NULL AND e.id IS NOT NULL AND e.disposition = 'Discharge')
-                    )
+                    AND w.id IS NOT NULL
+                    AND w.status = 'Discharged'
                     AND COALESCE(w.final_diagnosis, w.icu_diagnosis, w.initial_diagnosis, e.FstDx, gp.FstDx, '')
                     REGEXP 'Heat Stroke|Heat Exhaustion|Heat Syncope|Heat Cramps|Heat Tetany|Heat Edema|Prickly Heat|Rhabdomyolysis'
                     ";

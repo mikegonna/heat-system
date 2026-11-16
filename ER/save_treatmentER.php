@@ -90,8 +90,8 @@ if (isset($_POST['submit_treatment'])) {
         }
 
 
-        // รับค่า visit_unit (เฉพาะตอน Discharge)
-        $visit_unit = ($disposition === 'Discharge' && !empty($_POST['visit_unit'])) ? $_POST['visit_unit'] : '';
+        // เคสที่จำหน่ายจาก ER ไม่ส่งต่อไปยังหน่วยเยี่ยมบ้าน
+        $visit_unit = '';
 
         // รับค่า "เวลาที่จำหน่ายผู้ป่วย" (เฉพาะตอน Discharge) กันไม่ให้ค่าว่าง/รูปแบบผิดหลุดไปเป็น 0000-00-00
         $er_discharge_date = NULL;

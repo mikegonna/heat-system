@@ -201,15 +201,22 @@ $filter_end_date = array_key_exists('filter_end_date', $_GET)
     ? $normalize_date_filter($_GET['filter_end_date'])
     : sprintf('%04d-09-30', $default_year + 1);
 $er_arrival_date_conditions = [];
+$overview_case_date_expr = "COALESCE(NULLIF(e.hospital_arrival_datetime, '0000-00-00 00:00:00'), p.created_at)";
+$overview_date_conditions = [];
 if ($filter_start_date !== '') {
     $er_arrival_date_conditions[] = "e.hospital_arrival_datetime >= '$filter_start_date'";
+    $overview_date_conditions[] = "$overview_case_date_expr >= '$filter_start_date'";
 }
 if ($filter_end_date !== '') {
     $er_arrival_date_conditions[] = "e.hospital_arrival_datetime < DATE_ADD('$filter_end_date', INTERVAL 1 DAY)";
+    $overview_date_conditions[] = "$overview_case_date_expr < DATE_ADD('$filter_end_date', INTERVAL 1 DAY)";
 }
 $er_arrival_date_filter_sql = empty($er_arrival_date_conditions)
     ? ''
     : ' AND ' . implode(' AND ', $er_arrival_date_conditions);
+$overview_date_filter_sql = empty($overview_date_conditions)
+    ? ''
+    : ' AND ' . implode(' AND ', $overview_date_conditions);
 
 $ptypes_labels = ['ทหารกองประจำการ', 'กำลังพล ทบ.', 'นอก ทบ.', 'อื่นๆ'];
 $months = ['ม.ค.', 'ก.พ.', 'มี.ค.', 'เม.ย.', 'พ.ค.', 'มิ.ย.', 'ก.ค.', 'ส.ค.', 'ก.ย.', 'ต.ค.', 'พ.ย.', 'ธ.ค.'];
@@ -527,14 +534,14 @@ $dc_cases = array_filter($filtered_overview, function($row) {
 });
 $dc_cases = array_values($dc_cases);
 
-// จำนวนผู้ป่วยตามช่วงวันที่มาถึงโรงพยาบาล
+// จำนวนผู้ป่วยตามช่วงวันที่ที่ใช้ใน overview (วันมาถึง ER หรือวันที่สร้างเคส)
 $res_total_cases = $conn->query("
     SELECT COUNT(p.id) as c
     FROM cases p
     LEFT JOIN er_details e ON e.id = (
         SELECT MAX(e_latest.id) FROM er_details e_latest WHERE e_latest.case_id = p.id
     )
-    WHERE 1=1 $er_arrival_date_filter_sql
+    WHERE 1=1 $overview_date_filter_sql
 ");
 if ($res_total_cases) {
     $total_cases = (int)($res_total_cases->fetch_assoc()['c'] ?? 0);

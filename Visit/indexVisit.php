@@ -48,27 +48,20 @@ if ($is_pcu) {
     }
 }
 
-// --- สร้าง visit_unit filter สำหรับ query ที่ไม่มี w (ER-only query) ---
-$visit_unit_filter_er = '';
-// --- สร้าง visit_unit filter สำหรับ query ที่มีเฉพาะ w ไม่มี e (Ward-only query) ---
+// --- สร้าง visit_unit filter สำหรับ query ที่แสดงเฉพาะเคส Ward ---
 $visit_unit_filter_ward = '';
 if ($is_pcu) {
     if ($visit_tab === 'pcu') {
-        $visit_unit_filter_er = "AND (COALESCE(e.visit_unit, '') IN ('PCU', ''))";
         $visit_unit_filter_ward = "AND (COALESCE(w.visit_unit, '') IN ('PCU', ''))";
     } elseif ($visit_tab === 'cqi') {
-        $visit_unit_filter_er = "AND COALESCE(e.visit_unit, '') = 'CQI'";
         $visit_unit_filter_ward = "AND COALESCE(w.visit_unit, '') = 'CQI'";
     } else {
-        $visit_unit_filter_er = "AND (COALESCE(e.visit_unit, '') IN ('PCU', 'CQI', ''))";
         $visit_unit_filter_ward = "AND (COALESCE(w.visit_unit, '') IN ('PCU', 'CQI', ''))";
     }
 } elseif ($is_coc) {
     if ($coc_tab === 'all') {
-        $visit_unit_filter_er = "";
         $visit_unit_filter_ward = "";
     } else {
-        $visit_unit_filter_er = "AND COALESCE(e.visit_unit, '') = 'COC'";
         $visit_unit_filter_ward = "AND COALESCE(w.visit_unit, '') = 'COC'";
     }
 }
@@ -89,19 +82,15 @@ $h_page = isset($_GET['h_page']) ? max(1, (int)$_GET['h_page']) : 1;
 $h_offset = ($h_page - 1) * $limit;
 
 // เงื่อนไขการค้นหา
-// $filterSQL    = ใช้กับ query ที่มี JOIN ward_details (w) และ er_details (e)
-// $filterSQL_er = ใช้กับ query ที่มีเฉพาะ er_details (e) ไม่มี w
+// $filterSQL ใช้กับ query ที่มี JOIN ward_details (w) และ er_details (e)
 $filterSQL    = "";
-$filterSQL_er = "";
 $filterSQL_ward = "";
 
 if (!empty($search)) {
     $filterSQL    .= " AND (c.hn LIKE '%$search%' OR w.an LIKE '%$search%' OR c.patient_name LIKE '%$search%') ";
-    $filterSQL_er .= " AND (c.hn LIKE '%$search%' OR c.patient_name LIKE '%$search%') ";
     $filterSQL_ward .= " AND (c.hn LIKE '%$search%' OR w.an LIKE '%$search%' OR c.patient_name LIKE '%$search%') ";
 }
 $filterSQL    .= " AND DATE(COALESCE(w.discharge_date, w.admit_date, $erRecordedAtExpr, c.created_at)) BETWEEN '$start_date' AND '$end_date' ";
-$filterSQL_er .= " AND DATE(COALESCE($erRecordedAtExpr, c.created_at)) BETWEEN '$start_date' AND '$end_date' ";
 $filterSQL_ward .= " AND DATE(COALESCE(w.discharge_date, w.admit_date, c.created_at)) BETWEEN '$start_date' AND '$end_date' ";
 
 function getSeverity($dx) {
@@ -244,83 +233,10 @@ function getPatientTimeline($conn, $case_id) {
     return $html;
 }
 
-// ---------------------------------------------------------------------------
-// QUERY 1: D/C FROM ER
-// ---------------------------------------------------------------------------
-$sqlWait_Base = "SELECT
-    c.id as case_id,
-    c.hn,
-    c.patient_name,
-    c.age,
-    c.phone,
-    c.department,
-    c.person_type,
-
-    e.FstDx as er_dx,
-    e.risk_factors,
-    $erRecordedAtExpr as er_time,
-    e.disposition as er_status,
-    COALESCE(e.visit_unit, '') as visit_unit,
-
-    -- นับการเยี่ยม (ER) - ผูกกับ case_id เพื่อกันนับปนกับ Ward
-    (SELECT COUNT(*) 
-     FROM home_visits hv 
-     WHERE hv.hn = c.hn 
-       AND (hv.an IS NULL OR hv.an = '')
-       AND NOT EXISTS (
-           SELECT 1 FROM ward_details wd 
-           WHERE wd.case_id = c.id AND wd.an = hv.an
-       )
-    ) as visit_count_er
-
-FROM cases c
-
-LEFT JOIN er_details e 
-    ON e.id = (
-        SELECT MAX(id) 
-        FROM er_details 
-        WHERE case_id = c.id
-    )
-
-WHERE 
-    e.id IS NOT NULL
-    AND e.disposition = 'Discharge'
-
-    -- กัน Dead / Refer (จริง ๆ Discharge ก็กันอยู่แล้ว แต่เผื่อ)
-    AND IFNULL(e.disposition, '') NOT IN ('Dead', 'Refer')
-    AND e.FstDx REGEXP 'Heat Stroke|Heat Exhaustion|Heat Syncope|Heat Cramps|Heat Tetany|Heat Edema|Prickly Heat|Rhabdomyolysis'
-    $visit_unit_filter_er
-    AND (
-        SELECT COUNT(*) 
-        FROM home_visits hv 
-        WHERE hv.hn = c.hn 
-          AND (hv.an IS NULL OR hv.an = '')
-          AND NOT EXISTS (
-              SELECT 1 FROM ward_details wd 
-              WHERE wd.case_id = c.id AND wd.an = hv.an
-          )
-    ) < (
-        CASE 
-            WHEN COALESCE(e.FstDx, '') REGEXP 'Heat Stroke|Heat Exhaustion|Rhabdomyolysis \\\\(CPK > 1,000\\\\)'
-            THEN 2
-            ELSE 1
-        END
-    )
-
-    $filterSQL_er
-";
-
-// นับจำนวนแถวทั้งหมดของ รอเยี่ยม
-$countWaitQuery = $conn->query("SELECT COUNT(*) as t FROM ($sqlWait_Base) AS sub");
-$totalWait = $countWaitQuery ? $countWaitQuery->fetch_assoc()['t'] : 0;
-$w_totalPages = ceil($totalWait / $limit);
-
-// ดึงข้อมูลตาม Limit และ Offset
-$sqlWait = "$sqlWait_Base 
-ORDER BY 
-    $erRecordedAtExpr DESC
-LIMIT $limit OFFSET $w_offset";
-$resWait = $conn->query($sqlWait);
+// ER discharge cases are not eligible for COC/PCU/CQI home visits.
+$totalWait = 0;
+$w_totalPages = 0;
+$resWait = false;
 
 // ---------------------------------------------------------------------------
 // QUERY 2: D/C FROM WARD
@@ -421,11 +337,9 @@ $sqlHist_Base = "SELECT
         LEFT JOIN er_details e ON e.id = (SELECT MAX(id) FROM er_details WHERE case_id = c.id)
         LEFT JOIN ward_details w ON w.id = (SELECT MAX(id) FROM ward_details WHERE case_id = c.id)
         WHERE 
-            (
-                (w.id IS NOT NULL AND w.status = 'Discharged' AND IFNULL(w.discharge_status,'') NOT IN ('Dead','Refer'))
-                OR
-                (w.id IS NULL AND e.id IS NOT NULL AND e.disposition = 'Discharge')
-            )
+            w.id IS NOT NULL
+            AND w.status = 'Discharged'
+            AND IFNULL(w.discharge_status,'') NOT IN ('Dead','Refer')
             AND (
                 -- Moderate ครบ 1 ครั้ง: ต้องระบุ pattern ชัดเจนว่าเป็น Heat กลุ่มไหน
                 (
@@ -461,10 +375,9 @@ $kpi_wait_q = $conn->query("SELECT COUNT(*) as t FROM (
     SELECT c.id FROM cases c
     LEFT JOIN er_details e ON e.id = (SELECT MAX(id) FROM er_details WHERE case_id = c.id)
     LEFT JOIN ward_details w ON w.id = (SELECT MAX(id) FROM ward_details WHERE case_id = c.id)
-    WHERE (
-        (w.id IS NOT NULL AND w.status = 'Discharged' AND IFNULL(w.discharge_status,'') NOT IN ('Dead','Refer'))
-        OR (w.id IS NULL AND e.id IS NOT NULL AND e.disposition = 'Discharge')
-    )
+    WHERE w.id IS NOT NULL
+    AND w.status = 'Discharged'
+    AND IFNULL(w.discharge_status,'') NOT IN ('Dead','Refer')
     AND DATE(COALESCE(w.discharge_date, w.admit_date, $erRecordedAtExpr, c.created_at)) BETWEEN '$start_date' AND '$end_date'
     AND COALESCE(w.final_diagnosis, w.initial_diagnosis, e.FstDx, '')
     REGEXP 'Heat Stroke|Heat Exhaustion|Heat Syncope|Heat Cramps|Heat Tetany|Heat Edema|Prickly Heat|Rhabdomyolysis'
@@ -479,10 +392,9 @@ $kpi_tracked_q = $conn->query("SELECT COUNT(*) as t FROM (
     SELECT c.id FROM cases c
     LEFT JOIN er_details e ON e.id = (SELECT MAX(id) FROM er_details WHERE case_id = c.id)
     LEFT JOIN ward_details w ON w.id = (SELECT MAX(id) FROM ward_details WHERE case_id = c.id)
-    WHERE (
-        (w.id IS NOT NULL AND w.status = 'Discharged' AND IFNULL(w.discharge_status,'') NOT IN ('Dead','Refer'))
-        OR (w.id IS NULL AND e.id IS NOT NULL AND e.disposition = 'Discharge')
-    )
+    WHERE w.id IS NOT NULL
+    AND w.status = 'Discharged'
+    AND IFNULL(w.discharge_status,'') NOT IN ('Dead','Refer')
     AND DATE(COALESCE(w.discharge_date, w.admit_date, $erRecordedAtExpr, c.created_at)) BETWEEN '$start_date' AND '$end_date'
     AND COALESCE(w.final_diagnosis, w.initial_diagnosis, e.FstDx, '') 
         REGEXP 'Heat Stroke|Heat Exhaustion|Rhabdomyolysis \\\\(CPK > 1,000\\\\)'
@@ -496,10 +408,9 @@ $kpi_done_q = $conn->query("SELECT COUNT(*) as t FROM (
     SELECT c.id FROM cases c
     LEFT JOIN er_details e ON e.id = (SELECT MAX(id) FROM er_details WHERE case_id = c.id)
     LEFT JOIN ward_details w ON w.id = (SELECT MAX(id) FROM ward_details WHERE case_id = c.id)
-    WHERE (
-        (w.id IS NOT NULL AND w.status = 'Discharged' AND IFNULL(w.discharge_status,'') NOT IN ('Dead','Refer'))
-        OR (w.id IS NULL AND e.id IS NOT NULL AND e.disposition = 'Discharge')
-    )
+    WHERE w.id IS NOT NULL
+    AND w.status = 'Discharged'
+    AND IFNULL(w.discharge_status,'') NOT IN ('Dead','Refer')
     AND DATE(COALESCE(w.discharge_date, w.admit_date, $erRecordedAtExpr, c.created_at)) BETWEEN '$start_date' AND '$end_date'
     $visit_unit_filter
     AND (

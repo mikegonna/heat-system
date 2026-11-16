@@ -25,10 +25,8 @@ if (isset($conn)) {
             AND IFNULL(w.discharge_status, '') NOT IN ('Dead', 'Refer')
             AND (e.id IS NOT NULL OR w.id IS NOT NULL)
             AND DATE(COALESCE(w.discharge_date, e.recorded_at, c.created_at)) BETWEEN '{$fiscal_date_range['start_date']}' AND '{$fiscal_date_range['end_date']}'
-            AND (
-                (w.id IS NOT NULL AND w.status = 'Discharged')
-                OR (w.id IS NULL AND e.id IS NOT NULL AND e.disposition = 'Discharge')
-            )
+            AND w.id IS NOT NULL
+            AND w.status = 'Discharged'
             -- กรองเฉพาะ Heat
             AND COALESCE(w.final_diagnosis, w.icu_diagnosis, w.initial_diagnosis, e.FstDx, '')
                 REGEXP 'Heat Stroke|Heat Exhaustion|Heat Syncope|Heat Cramps|Heat Tetany|Heat Edema|Prickly Heat|Rhabdomyolysis'

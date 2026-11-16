@@ -391,7 +391,7 @@ if (isset($_GET['autofill'])) {
 
                         <!-- Admit Details -->
                         <div class="sub-expand-box d-none" id="admit_options_group">
-                            <label class="form-label label-required" style="color:#0284c7;">ประเภท Admit</label>
+                            <label class="form-label label-required" style="color:#0284c7;"><i class="fa-solid fa-bed-pulse me-1"></i>ประเภท Admit</label>
                             <select name="admit_type" id="admit_type" class="form-select" onchange="toggleWardDetails()">
                                 <option value="">— เลือกหอผู้ป่วย —</option>
                                 <option value="Ward ICU">Ward ICU</option>
@@ -403,34 +403,19 @@ if (isset($_GET['autofill'])) {
 
                         <!-- Refer Details -->
                         <div class="sub-expand-box d-none" id="refer_details_group">
-                            <label class="form-label label-required" style="color:#d97706;">ชื่อโรงพยาบาลที่ส่งต่อ</label>
+                            <label class="form-label label-required" style="color:#d97706;"><i class="fa-solid fa-truck-medical me-1"></i>ชื่อโรงพยาบาลที่ส่งต่อ</label>
                             <input type="text" name="refer_hospital" id="refer_hospital" class="form-control" placeholder="ระบุชื่อโรงพยาบาล">
                         </div>
 
                         <!-- Dead Details -->
                         <div class="sub-expand-box d-none" id="dead_details_group">
-                            <label class="form-label text-danger">ระบุสาเหตุการเสียชีวิต</label>
+                            <label class="form-label text-danger"><i class="fa-solid fa-book-skull me-1"></i>ระบุสาเหตุการเสียชีวิต</label>
                             <input type="text" name="death_cause" id="death_cause" class="form-control border-danger" placeholder="เช่น Heat Stroke with Multi-organ failure">
                         </div>
 
-                        <!-- Visit Unit (แสดงเฉพาะตอนเลือก Discharge) -->
-                        <div class="sub-expand-box d-none" id="visit_unit_group" style="background:#f0fdf4; border-color:#86efac !important;">
-                            <label class="form-label fw-bold mb-2" style="color:#16a34a;"><i class="fa-solid fa-house-medical-circle-check me-1"></i> หน่วยงานที่จะให้เยี่ยมบ้าน <span class="text-danger">*</span></label>
-                            <div class="d-flex flex-wrap gap-3 mt-1">
-                                <div class="form-check">
-                                    <input class="form-check-input visit-unit-radio" type="radio" name="visit_unit" value="CQI" id="unit_cqi">
-                                    <label class="form-check-label fw-bold" for="unit_cqi">CQI</label>
-                                </div>
-                                <div class="form-check">
-                                    <input class="form-check-input visit-unit-radio" type="radio" name="visit_unit" value="PCU" id="unit_pcu">
-                                    <label class="form-check-label fw-bold" for="unit_pcu">PCU</label>
-                                </div>
-                                <div class="form-check">
-                                    <input class="form-check-input visit-unit-radio" type="radio" name="visit_unit" value="COC" id="unit_coc">
-                                    <label class="form-check-label fw-bold" for="unit_coc">COC</label>
-                                </div>
-                            </div>
-                            <label class="form-label fw-bold mb-2 mt-3 text-success"><i class="fa-solid fa-clock me-1"></i>วันเวลาที่จำหน่ายผู้ป่วย <span class="text-danger">*</span></label>
+                        <!-- Discharge date (แสดงเฉพาะตอนเลือก Discharge) -->
+                        <div class="sub-expand-box d-none" id="discharge_date_group" style="background:#f0fdf4; border-color:#86efac !important;">
+                            <label class="form-label fw-bold mb-2 text-success"><i class="fa-solid fa-clock me-1"></i>วันเวลาที่จำหน่ายผู้ป่วย <span class="text-danger">*</span></label>
                             <input type="datetime-local" class="form-control" name="er_discharge_date" id="er_discharge_date"
                                 step="1" onfocus="stopErDischargeUpdate()" onchange="stopErDischargeUpdate()">
                         </div>
@@ -738,25 +723,22 @@ if (isset($_GET['autofill'])) {
         const referInput     = document.getElementById('refer_hospital');
         const deadGroup      = document.getElementById('dead_details_group');
         const deadInput      = document.getElementById('death_cause');
-        const visitUnitGroup = document.getElementById('visit_unit_group');
-        const visitUnitRadios = document.querySelectorAll('.visit-unit-radio');
+        const dischargeDateGroup = document.getElementById('discharge_date_group');
         const erDischargeInput = document.getElementById('er_discharge_date');
 
         admitGroup.classList.add('d-none'); referGroup.classList.add('d-none'); 
-        deadGroup.classList.add('d-none'); visitUnitGroup.classList.add('d-none');
+        deadGroup.classList.add('d-none'); dischargeDateGroup.classList.add('d-none');
         admitType.required = false; referInput.required = false; deadInput.required = false;
 
-        // 💡 เริ่มต้น: ปิดการบังคับกรอกหน่วยเยี่ยมบ้าน/เวลาจำหน่าย ไว้ก่อนเสมอ
-        visitUnitRadios.forEach(r => r.required = false);
+        // เริ่มต้นปิดการบังคับกรอกเวลาจำหน่ายไว้ก่อน
         if (erDischargeInput) erDischargeInput.required = false;
 
         if (val === 'Admit') { admitGroup.classList.remove('d-none'); admitType.required = true; } 
         else if (val === 'Refer') { referGroup.classList.remove('d-none'); referInput.required = true; } 
         else if (val === 'Dead') { deadGroup.classList.remove('d-none'); deadInput.required = true; }
         else if (val === 'Discharge') { 
-            visitUnitGroup.classList.remove('d-none');
-            // 💡 เมื่อเลือก Discharge บังคับให้เลือกหน่วยที่ให้เยี่ยม และระบุเวลาที่จำหน่ายทุกครั้ง
-            visitUnitRadios.forEach(r => r.required = true);
+            dischargeDateGroup.classList.remove('d-none');
+            // เมื่อเลือก Discharge ให้ระบุเวลาจำหน่าย
             if (erDischargeInput) {
                 erDischargeInput.required = true;
                 // ถ้ายังไม่เคยมีค่า ให้เติมเวลาปัจจุบันให้ทันที (ผู้ใช้ยังแก้ไขได้ภายหลัง)
@@ -776,18 +758,12 @@ if (isset($_GET['autofill'])) {
         }
     }
 
-    // 💡 กันเหนียวอีกชั้น: ตอนกดบันทึกจริง ถ้าเป็น Discharge ต้องเลือกหน่วยเยี่ยมบ้าน + มีเวลาจำหน่าย
+    // ตรวจสอบเวลาจำหน่ายอีกครั้งก่อนบันทึก
     document.getElementById('erTreatmentForm').addEventListener('submit', function(e) {
         const dispositionVal = document.getElementById('disposition').value;
         if (dispositionVal === 'Discharge') {
-            const visitUnitChecked = document.querySelector('input[name="visit_unit"]:checked');
             const erDischargeInput = document.getElementById('er_discharge_date');
 
-            if (!visitUnitChecked) {
-                e.preventDefault();
-                Swal.fire({ icon: 'warning', title: 'กรอกข้อมูลไม่ครบ', text: 'กรุณาเลือกหน่วยงานที่จะให้เยี่ยมบ้าน ก่อนบันทึกข้อมูล' });
-                return false;
-            }
             if (erDischargeInput && !erDischargeInput.value) {
                 e.preventDefault();
                 Swal.fire({ icon: 'warning', title: 'กรอกข้อมูลไม่ครบ', text: 'กรุณาระบุเวลาที่จำหน่ายผู้ป่วย ก่อนบันทึกข้อมูล' });
