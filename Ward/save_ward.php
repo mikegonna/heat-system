@@ -31,24 +31,41 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
         $details = $_POST['details'];
         $treatment_result = $_POST['treatment_result']; 
         $doctor_name = $_POST['doctor_name'];
+        $final_select = $_POST['final_diagnosis_select'] ?? '';
 
         if ($treatment_result === 'Discharge') {
-            $sql_check_er = "SELECT 1
-                             FROM er_details e
-                             INNER JOIN ward_details w ON w.case_id = e.case_id
-                             WHERE w.id = ?
-                             LIMIT 1";
-            $stmt_check_er = $conn->prepare($sql_check_er);
-            $stmt_check_er->bind_param("i", $ward_detail_id);
-            $stmt_check_er->execute();
-            $has_er_treatment = $stmt_check_er->get_result()->num_rows > 0;
-            $stmt_check_er->close();
+            $heat_diagnoses = [
+                "Heat Stroke", "Heat Exhaustion", "Rhabdomyolysis (CPK > 1,000)",
+                "Rhabdomyolysis (CPK < 1,000)", "Heat Tetany", "Heat Cramps",
+                "Heat Syncope", "Heat Edema", "Prickly Heat"
+            ];
+            $stmt_initial_dx = $conn->prepare("SELECT initial_diagnosis FROM ward_details WHERE id = ?");
+            $stmt_initial_dx->bind_param("i", $ward_detail_id);
+            $stmt_initial_dx->execute();
+            $initial_diagnosis = $stmt_initial_dx->get_result()->fetch_assoc()['initial_diagnosis'] ?? '';
+            $stmt_initial_dx->close();
 
-            if (!$has_er_treatment) {
-                $_SESSION['statusType'] = 'error';
-                $_SESSION['statusMsg'] = 'ไม่สามารถ D/C ได้ เนื่องจากเคสนี้ยังไม่มีข้อมูลการรักษาจาก ER กรุณาบันทึกข้อมูลที่ ER ก่อน';
-                header("Location: treatmentWard.php?id=$ward_detail_id");
-                exit();
+            $is_heat_related = in_array($initial_diagnosis, $heat_diagnoses, true)
+                || in_array($final_select, $heat_diagnoses, true);
+
+            if ($is_heat_related) {
+                $sql_check_er = "SELECT 1
+                                 FROM er_details e
+                                 INNER JOIN ward_details w ON w.case_id = e.case_id
+                                 WHERE w.id = ?
+                                 LIMIT 1";
+                $stmt_check_er = $conn->prepare($sql_check_er);
+                $stmt_check_er->bind_param("i", $ward_detail_id);
+                $stmt_check_er->execute();
+                $has_er_treatment = $stmt_check_er->get_result()->num_rows > 0;
+                $stmt_check_er->close();
+
+                if (!$has_er_treatment) {
+                    $_SESSION['statusType'] = 'error';
+                    $_SESSION['statusMsg'] = 'ไม่สามารถ D/C เคส Heat ได้ เนื่องจากยังไม่มีข้อมูลการรักษาจาก ER กรุณาบันทึกข้อมูลที่ ER ก่อน';
+                    header("Location: treatmentWard.php?id=$ward_detail_id");
+                    exit();
+                }
             }
         }
 
@@ -74,7 +91,6 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
         
         // 3.1 รับค่า Final Diagnosis
         $final_diagnosis = NULL;
-        $final_select = isset($_POST['final_diagnosis_select']) ? $_POST['final_diagnosis_select'] : '';
         
         if ($final_select === 'other') {
              $final_diagnosis = isset($_POST['final_diagnosis_other']) ? $_POST['final_diagnosis_other'] : NULL;

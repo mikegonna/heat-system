@@ -263,7 +263,7 @@
                     <i class="fa-solid fa-file-medical me-2"></i>แบบบันทึกอาการ / จำหน่าย (Progress Note)
                 </div>
                 <div class="card-body p-4">
-                    <form action="save_ward.php" method="post">
+                    <form action="save_ward.php" method="post" onsubmit="return validateHeatDischarge()">
                         <input type="hidden" name="ward_detail_id" value="<?php echo $ward_id; ?>">
                         <input type="hidden" name="case_id" value="<?php echo $info['case_id']; ?>">
 
@@ -298,7 +298,7 @@
                         <!-- Dynamic Groups (Hidden by default) -->
                         <div class="mb-3 d-none p-3 bg-theme-light rounded border" style="border-color: var(--t-main) !important;" id="final_dx_group">
                             <label class="form-label text-theme mb-2"><i class="fa-solid fa-stethoscope me-1"></i> วินิจฉัยสุดท้าย (Final Diagnosis) <span class="text-danger">*</span></label>
-                            <select name="final_diagnosis_select" id="final_diagnosis_select" class="form-select" onchange="toggleDiagnosis(this, 'final_diagnosis_other')">
+                            <select name="final_diagnosis_select" id="final_diagnosis_select" class="form-select" onchange="toggleDiagnosis(this, 'final_diagnosis_other'); validateHeatDischargeSelection()">
                                 <option value="">-- เลือกวินิจฉัย --</option>
                                 <?php foreach($diagnosis_list as $dx) { echo "<option value='$dx'>$dx</option>"; } ?>
                                 <option value="other">อื่นๆ ที่ไม่ใช่ Heat (ระบุ)</option>
@@ -481,6 +481,8 @@
 <script src="../bootstrap-5.0.2-dist/js/bootstrap.bundle.min.js"></script>
 <script>
     const hasErTreatment = <?php echo json_encode((bool)$info['has_er_treatment']); ?>;
+    const heatDiagnoses = <?php echo json_encode($diagnosis_list); ?>;
+    const initialDiagnosis = <?php echo json_encode($info['initial_diagnosis']); ?>;
 
     function toggleDiagnosis(selectObj, otherInputId) {
         var otherInput = document.getElementById(otherInputId);
@@ -491,18 +493,38 @@
         }
     }
 
-    function toggleTreatmentOptions() {
-        const treatmentResult = document.getElementById('treatment_result');
-        let result = treatmentResult.value;
-        if (result === 'Discharge' && !hasErTreatment) {
-            treatmentResult.value = '';
-            result = '';
+    function isHeatRelatedCase() {
+        const finalDiagnosis = document.getElementById('final_diagnosis_select').value;
+        return heatDiagnoses.includes(initialDiagnosis) || heatDiagnoses.includes(finalDiagnosis);
+    }
+
+    function validateHeatDischarge() {
+        const isBlocked = document.getElementById('treatment_result').value === 'Discharge'
+            && isHeatRelatedCase()
+            && !hasErTreatment;
+
+        if (isBlocked) {
             Swal.fire({
                 icon: 'warning',
                 title: 'ไม่สามารถ D/C ได้',
-                text: 'ไม่พบข้อมูลการรักษาจาก ER กรุณาติดต่อ ER ให้ส่งเคสมาก่อนจำหน่ายผู้ป่วย'
+                text: 'เคส Heat ต้องมีข้อมูลการรักษาจาก ER ก่อนจำหน่ายผู้ป่วย'
             });
+            return false;
         }
+
+        return true;
+    }
+
+    function validateHeatDischargeSelection() {
+        if (!validateHeatDischarge()) {
+            const diagnosisSelect = document.getElementById('final_diagnosis_select');
+            diagnosisSelect.value = '';
+        }
+    }
+
+    function toggleTreatmentOptions() {
+        const treatmentResult = document.getElementById('treatment_result');
+        let result = treatmentResult.value;
 
         const groups = ['final_dx_group','admit_group','refer_group','dead_group','visit_unit_group'];
         const inputs = ['final_diagnosis_select','admit_type','refer_hospital','death_cause'];
@@ -531,6 +553,10 @@
         else if (result === 'Admit') {
             document.getElementById('admit_group').classList.remove('d-none');
             document.getElementById('admit_type').required = true;
+        }
+
+        if (result === 'Discharge') {
+            validateHeatDischarge();
         }
     }
 </script>
