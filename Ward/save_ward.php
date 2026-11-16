@@ -45,8 +45,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
             $initial_diagnosis = $stmt_initial_dx->get_result()->fetch_assoc()['initial_diagnosis'] ?? '';
             $stmt_initial_dx->close();
 
-            $is_heat_related = in_array($initial_diagnosis, $heat_diagnoses, true)
-                || in_array($final_select, $heat_diagnoses, true);
+            $is_heat_related = in_array($initial_diagnosis, $heat_diagnoses, true);
 
             if ($is_heat_related) {
                 $sql_check_er = "SELECT 1
