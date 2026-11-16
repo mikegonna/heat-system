@@ -39,6 +39,11 @@ $er_link = ($path_prefix === "../") ? "" : "ER/";
         <div class="collapse navbar-collapse" id="navbarNav">
 
             <ul class="navbar-nav ms-auto">
+                <li class="nav-item">
+                    <button class="nav-link border-0 bg-transparent" type="button" data-bs-toggle="modal" data-bs-target="#releaseNotesModal">
+                        <i class="bi bi-megaphone"></i> อัปเดตระบบ <span class="badge bg-warning text-dark">v3.4</span>
+                    </button>
+                </li>
                 <?php if (isset($_SESSION['user_id'])): ?>
                     <li class="nav-item dropdown">
                         <a class="nav-link dropdown-toggle active" href="#" role="button" data-bs-toggle="dropdown">
@@ -53,4 +58,53 @@ $er_link = ($path_prefix === "../") ? "" : "ER/";
         </div>
     </div>
 </nav>
+
+<div class="modal fade" id="releaseNotesModal" tabindex="-1" aria-labelledby="releaseNotesModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered modal-dialog-scrollable">
+        <div class="modal-content">
+            <div class="modal-header text-white" style="background-color: #005461;">
+                <div>
+                    <h5 class="modal-title" id="releaseNotesModalLabel">
+                        <i class="bi bi-journal-text me-2"></i>รายละเอียดการปรับปรุงระบบ
+                    </h5>
+                    <small class="text-white-50">ประวัติเวอร์ชันตั้งแต่ 3.2</small>
+                </div>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="ปิด"></button>
+            </div>
+            <div class="modal-body">
+                <section class="mb-4">
+                    <h6 class="fw-bold text-primary">Version 3.4 <span class="badge bg-primary">ปัจจุบัน</span></h6>
+                    <ul class="mb-0">
+                        <li>ปรับปรุงการแสดงจำนวนเคสและรายการเคสใน PCT, PMR และ Visit</li>
+                        <li>เพิ่มวันนัดติดตามในหน้าบันทึกและรายการผู้ป่วย PMR</li>
+                        <li>ปรับปรุงการส่งออกข้อมูล Excel และการทำงานของผู้ใช้ OCC</li>
+                        <li>แก้ไขขั้นตอนจำหน่ายผู้ป่วยจาก Ward รวมถึงกรณีวินิจฉัยสุดท้ายเป็นโรคลมร้อน</li>
+                    </ul>
+                </section>
+                <section class="mb-4">
+                    <h6 class="fw-bold text-primary">Version 3.3</h6>
+                    <ul class="mb-0">
+                        <li>เพิ่มบันทึกความคิดเห็นเคสสำหรับ PCT</li>
+                        <li>ปรับปรุงแบบฟอร์มติดตามของ MED พร้อมข้อมูลผลตรวจและวันติดตาม</li>
+                        <li>เพิ่มและปรับปรุงผู้ใช้ OCC รวมถึงขั้นตอนการทำงานและแบบฟอร์ม</li>
+                    </ul>
+                </section>
+                <section>
+                    <h6 class="fw-bold text-primary">Version 3.2</h6>
+                    <ul class="mb-0">
+                        <li>ปรับกราฟ Heat ให้แสดงเดือนตามปีงบประมาณที่เลือก</li>
+                        <li>เพิ่มป้ายแสดงประเภทการรับไว้รักษา</li>
+                        <li>ปรับปรุงการตรวจสอบการรับผู้ป่วยเข้า Ward และข้อมูลผู้ติดต่อ</li>
+                        <li>ปรับสีหน้าการรักษาใน Ward ให้อ่านง่ายขึ้น</li>
+                    </ul>
+                </section>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">ปิด</button>
+            </div>
+        </div>
+    </div>
+</div>
+<script src="<?php echo $path_prefix; ?>bootstrap-5.0.2-dist/js/bootstrap.bundle.min.js"></script>
+
 <div class="main-content container mt-4"></div>

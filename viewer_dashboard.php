@@ -489,8 +489,6 @@ $result_rehab = $conn->query($sql_rehab);
     </div>
 
     <?php $path_prefix = ""; require_once 'footer.php';?>
-    <script src="bootstrap-5.0.2-dist/js/bootstrap.bundle.min.js"></script>
-    
     <script>
         function openNoteModal(wardId) {
             var myModal = new bootstrap.Modal(document.getElementById('noteModal'));
