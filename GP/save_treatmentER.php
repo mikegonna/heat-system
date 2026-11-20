@@ -14,6 +14,24 @@ if (!isset($_SESSION['user_id'])) {
 $statusMsg = "";
 $statusType = "";
 
+function normalizeGpDateTime($value, string $field): ?string
+{
+    if ($value === null || $value === '') {
+        return null;
+    }
+
+    if (!is_string($value)) {
+        throw new RuntimeException("รูปแบบ$fieldไม่ถูกต้อง");
+    }
+
+    $timestamp = strtotime(str_replace('T', ' ', $value));
+    if ($timestamp === false) {
+        throw new RuntimeException("รูปแบบ$fieldไม่ถูกต้อง");
+    }
+
+    return date('Y-m-d H:i:s', $timestamp);
+}
+
 if (isset($_POST['submit_treatment'])) {
     try {
         $user_id = $_SESSION['user_id'];
@@ -36,8 +54,8 @@ if (isset($_POST['submit_treatment'])) {
         $person_type = $_POST['person_type'] ?? '';
         if ($person_type == 'อื่นๆ') $person_type = $_POST['other_person_type'] ?? '';
 
-        $arrival_time = $_POST['arrival_time'] ?? '';
-        $hospital_arrival_datetime = empty($_POST['hospital_arrival_datetime']) ? NULL : $_POST['hospital_arrival_datetime']; 
+        $arrival_time = normalizeGpDateTime($_POST['arrival_time'] ?? null, 'เวลาเริ่มมีอาการ') ?? '';
+        $hospital_arrival_datetime = normalizeGpDateTime($_POST['hospital_arrival_datetime'] ?? null, 'เวลาถึงโรงพยาบาล');
         $first_aid = $_POST['first_aid'] ?? '';
         $ct_initial = !empty($_POST['ct_initial']) ? $_POST['ct_initial'] : NULL;
         $ct_30min = !empty($_POST['ct_30min']) ? $_POST['ct_30min'] : NULL;
@@ -64,6 +82,18 @@ if (isset($_POST['submit_treatment'])) {
 
         $risk_factors = isset($_POST['risk_factors']) ? implode(", ", $_POST['risk_factors']) : "ไม่มีปัจจัยเสี่ยงระบุ";
 
+        $recorded_at = normalizeGpDateTime($_POST['recorded_at'] ?? null, 'วันที่บันทึกข้อมูล')
+            ?? date('Y-m-d H:i:s');
+        $er_discharge_date = null;
+        if ($disposition === 'Discharge') {
+            $er_discharge_date = normalizeGpDateTime($_POST['er_discharge_date'] ?? null, 'วันเวลาที่จำหน่ายผู้ป่วย');
+            if ($er_discharge_date === null) {
+                throw new RuntimeException("กรุณาระบุวันเวลาที่จำหน่ายผู้ป่วย");
+            }
+        } else {
+            // gp_details requires a value even when the disposition is not Discharge.
+            $er_discharge_date = $recorded_at;
+        }
 
         // 💡 [แก้ไขตรรกะการบันทึก] แยก Insert กรณีเคสใหม่ หรือ Update กรณีสวมรอย
         $case_id = 0;
@@ -88,15 +118,15 @@ if (isset($_POST['submit_treatment'])) {
         }
 
 
-        // บันทึกฟอร์มรายละเอียดของ ER ลงตาราง er_details (อ้างอิงไปที่ $case_id ที่ถูกต้องเสมอ)
+        // บันทึกฟิลด์ GP ที่มีอยู่ในตาราง gp_details
         $sql_er = "INSERT INTO gp_details 
                 (case_id, user_id, cause_factor, first_aid, arrival_time, hospital_arrival_datetime,
                  ct_initial, ct_30min, ct_control, FstDx, disposition, death_cause, admit_type, refer_hospital, treatment_result,
-                  risk_factors, reporter_name, visit_unit, er_discharge_date, recorded_at) 
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW())";
+                  risk_factors, reporter_name, er_discharge_date, recorded_at)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)";
 
         $stmt = $conn->prepare($sql_er);
-        $stmt->bind_param("iissssddssssssssss" . "s", 
+        $stmt->bind_param("iissssddsssssssssss",
             $case_id, 
             $user_id, 
             $cause_factor, 
@@ -114,22 +144,13 @@ if (isset($_POST['submit_treatment'])) {
             $treatment_result, 
             $risk_factors, 
             $reporter_name,
-            $visit_unit,
-            $er_discharge_date
+            $er_discharge_date,
+            $recorded_at
         );
 
         if ($stmt->execute()) {
             $statusType = "success";
             $statusMsg = "บันทึกข้อมูล $patient_name เรียบร้อยแล้ว";
-
-             $row_id = $_POST['row_id'] ?? 0;
-            if ($row_id > 0) {
-                $sql_status = "UPDATE data_import SET status = 1 WHERE row_ID = ?";
-                $stmt_status = $conn->prepare($sql_status);
-                $stmt_status->bind_param("i", $row_id);
-                $stmt_status->execute();
-            } 
-
         } else {
             throw new Exception("Error inserting ER details: " . $stmt->error);
         }

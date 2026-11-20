@@ -48,20 +48,23 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
             $is_heat_related = in_array($initial_diagnosis, $heat_diagnoses, true);
 
             if ($is_heat_related) {
-                $sql_check_er = "SELECT 1
-                                 FROM er_details e
-                                 INNER JOIN ward_details w ON w.case_id = e.case_id
-                                 WHERE w.id = ?
-                                 LIMIT 1";
-                $stmt_check_er = $conn->prepare($sql_check_er);
-                $stmt_check_er->bind_param("i", $ward_detail_id);
-                $stmt_check_er->execute();
-                $has_er_treatment = $stmt_check_er->get_result()->num_rows > 0;
-                $stmt_check_er->close();
+                $sql_check_treatment = "SELECT 1
+                                        FROM ward_details w
+                                        WHERE w.id = ?
+                                          AND (
+                                              EXISTS (SELECT 1 FROM er_details e WHERE e.case_id = w.case_id)
+                                              OR EXISTS (SELECT 1 FROM gp_details g WHERE g.case_id = w.case_id)
+                                          )
+                                        LIMIT 1";
+                $stmt_check_treatment = $conn->prepare($sql_check_treatment);
+                $stmt_check_treatment->bind_param("i", $ward_detail_id);
+                $stmt_check_treatment->execute();
+                $has_initial_treatment = $stmt_check_treatment->get_result()->num_rows > 0;
+                $stmt_check_treatment->close();
 
-                if (!$has_er_treatment) {
+                if (!$has_initial_treatment) {
                     $_SESSION['statusType'] = 'error';
-                    $_SESSION['statusMsg'] = 'ไม่สามารถ D/C เคส Heat ได้ เนื่องจากยังไม่มีข้อมูลการรักษาจาก ER กรุณาบันทึกข้อมูลที่ ER ก่อน';
+                    $_SESSION['statusMsg'] = 'ไม่สามารถ D/C เคส Heat ได้ เนื่องจากยังไม่มีข้อมูลการรักษาจาก ER หรือ GP กรุณาบันทึกข้อมูลก่อน';
                     header("Location: treatmentWard.php?id=$ward_detail_id");
                     exit();
                 }

@@ -204,24 +204,6 @@ if ($is_er) {
 // 🟢 GP Logic
 // ===================================================================================
 elseif ($is_gp) {
-    $allWaitlist = [];
-    $total_wait = 0; $kpi_wait = 0; $waitlist = [];
-
-    //ส่วนที่มาจาก สแกนใบหน้า
-    $sqlimport = "SELECT * FROM data_import WHERE `status` = 0 ORDER BY data_date DESC";
-    $resultimport = $conn->query($sqlimport);
-
-    if ($resultimport) {
-        while ($row = $resultimport->fetch_assoc()) {
-            $allWaitlist[] = $row;
-        }
-    }
-    //จบส่วนที่มาจากสแกนใบหน้า
-
-    $total_wait = count($allWaitlist);
-    $kpi_wait   = $total_wait;
-    $waitlist   = array_slice($allWaitlist, $offset_wait, $limit);
-
     $sqlPerson = "SELECT c.person_type, COUNT(DISTINCT g.case_id) as count FROM gp_details g JOIN cases c ON g.case_id = c.id WHERE DATE(g.hospital_arrival_datetime) BETWEEN '$start_date' AND '$end_date' GROUP BY c.person_type";
     $resPerson = $conn->query($sqlPerson);
     if($resPerson) while ($r = $resPerson->fetch_assoc()) $personTypeCounts[!empty($r['person_type']) ? $r['person_type'] : 'ไม่ระบุ'] = $r['count'];
@@ -771,8 +753,12 @@ function getPatientTimeline($conn, $case_id) {
 
     // =====  DECISION POINT =====
 
-    //  CASE 1: มี ER หรือ Ward → ใช้ ER flow
+    //  CASE 1: มี ER หรือ Ward (รวม GP ถ้ามี) → แสดงข้อมูลก่อน Ward
     if ($er_data || $ward_count > 0) {
+
+        if ($gp_data) {
+            $steps[] = ['type' => 'gp', 'label' => 'GP', 'icon' => 'fa-user-doctor', 'datetime' => $gp_data['hospital_arrival_datetime'] ?? null];
+        }
 
         if ($er_data) {
             $steps[] = ['type' => 'er', 'label' => 'ER', 'icon' => 'fa-truck-medical', 'datetime' => $er_data['hospital_arrival_datetime'] ?? null];
@@ -986,10 +972,9 @@ $month_json = htmlspecialchars(json_encode($stats_heat_by_month), ENT_QUOTES, 'U
             <div class="col-md-3"><div class="card kpi-card border-danger"><div class="card-body d-flex align-items-center"><div class="kpi-icon me-3"><i class="fa-solid fa-bell fa-shake"></i></div><div><div class="kpi-label" style="color:#ef4444;">รอ ER รับเข้า</div><div class="kpi-value" style="color:#ef4444;"><?php echo $kpi_wait; ?> <small>ราย</small></div></div></div></div></div>
         
         <?php elseif ($is_gp): ?>
-            <div class="col-md-3"><div class="card kpi-card"><div class="card-body d-flex align-items-center"><div class="kpi-icon me-3"><i class="fa-solid fa-user-check"></i></div><div><div class="kpi-label">รับเข้าระบบในปีงบประมาณ</div><div class="kpi-value"><?php echo $kpi_total; ?> <small>ราย</small></div></div></div></div></div>
-            <div class="col-md-3"><div class="card kpi-card"><div class="card-body d-flex align-items-center"><div class="kpi-icon me-3"><i class="fa-solid fa-bed-pulse"></i></div><div><div class="kpi-label">ส่ง Admit ต่อในปีงบประมาณ</div><div class="kpi-value"><?php echo $kpi_admit; ?> <small>ราย</small></div></div></div></div></div>
-            <div class="col-md-3"><div class="card kpi-card"><div class="card-body d-flex align-items-center"><div class="kpi-icon me-3"><i class="fa-solid fa-house-medical"></i></div><div><div class="kpi-label">จำหน่ายกลับบ้านในปีงบประมาณ</div><div class="kpi-value"><?php echo $kpi_dc; ?> <small>ราย</small></div></div></div></div></div>
-            <div class="col-md-3"><div class="card kpi-card border-danger"><div class="card-body d-flex align-items-center"><div class="kpi-icon me-3"><i class="fa-solid fa-bell fa-shake"></i></div><div><div class="kpi-label" style="color:#ef4444;">รอ GP รับเข้า</div><div class="kpi-value" style="color:#ef4444;"><?php echo $kpi_wait; ?> <small>ราย</small></div></div></div></div></div>
+            <div class="col-md-4"><div class="card kpi-card"><div class="card-body d-flex align-items-center"><div class="kpi-icon me-3"><i class="fa-solid fa-user-check"></i></div><div><div class="kpi-label">รับเข้าระบบในปีงบประมาณ</div><div class="kpi-value"><?php echo $kpi_total; ?> <small>ราย</small></div></div></div></div></div>
+            <div class="col-md-4"><div class="card kpi-card"><div class="card-body d-flex align-items-center"><div class="kpi-icon me-3"><i class="fa-solid fa-bed-pulse"></i></div><div><div class="kpi-label">ส่ง Admit ต่อในปีงบประมาณ</div><div class="kpi-value"><?php echo $kpi_admit; ?> <small>ราย</small></div></div></div></div></div>
+            <div class="col-md-4"><div class="card kpi-card"><div class="card-body d-flex align-items-center"><div class="kpi-icon me-3"><i class="fa-solid fa-house-medical"></i></div><div><div class="kpi-label">จำหน่ายกลับบ้านในปีงบประมาณ</div><div class="kpi-value"><?php echo $kpi_dc; ?> <small>ราย</small></div></div></div></div></div>
 
         <?php elseif ($is_visit): ?>
             <div class="col-md-3"><div class="card kpi-card"><div class="card-body d-flex align-items-center"><div class="kpi-icon me-3"><i class="fa-solid fa-users"></i></div><div><div class="kpi-label">ยอดผู้ป่วยที่ต้องดูแลทั้งหมด</div><div class="kpi-value"><?php echo $kpi_total; ?> <small>ราย</small></div></div></div></div></div>
@@ -1126,16 +1111,16 @@ $month_json = htmlspecialchars(json_encode($stats_heat_by_month), ENT_QUOTES, 'U
         </div>
     </div>
 
+    <?php if (!$is_gp): ?>
     <div class="row g-4 mb-4">
         <div class="col-md-12">
             <div class="table-custom">
-                <div class="table-header-band <?php echo ($is_er || $is_gp || $is_ward) ? 'danger-band' : 'primary-band'; ?> d-flex justify-content-between align-items-center">
+                <div class="table-header-band <?php echo ($is_er || $is_ward) ? 'danger-band' : 'primary-band'; ?> d-flex justify-content-between align-items-center">
                     <h6 class="font-prompt fw-bold mb-0 text-white">
-                        <i class="fa-solid <?php echo ($is_er || $is_gp || $is_ward) ? 'fa-bell' : 'fa-clipboard-list'; ?> me-2"></i>
+                        <i class="fa-solid <?php echo ($is_er || $is_ward) ? 'fa-bell' : 'fa-clipboard-list'; ?> me-2"></i>
                         <?php 
                             $wl_title = 'รายการผู้ป่วยแจ้งเตือน รอรับเข้า';
                             if ($is_er) $wl_title = 'รอ ER รับเข้า (รอข้อมูลแจ้งเตือน)';
-                            if ($is_gp) $wl_title = 'รอ GP รับเข้า (รอข้อมูลแจ้งเตือน)';
                             if ($is_med || $is_occ || $is_pmr || $is_visit) $wl_title = 'รายการผู้ป่วย รอติดตามครั้งแรก (Pending First Record)';
                             echo $wl_title;
                         ?>
@@ -1195,7 +1180,7 @@ $month_json = htmlspecialchars(json_encode($stats_heat_by_month), ENT_QUOTES, 'U
                                     <th width="15%">วินิจฉัยแรกรับ</th>
                                     <th width="20%" class="text-center">ไทม์ไลน์การรักษา</th>
                                     <th width="15%">วินิจฉัยสุดท้าย</th>
-                                <?php elseif($is_er || $is_gp): ?>
+                                <?php elseif($is_er): ?>
                                     <th width="10%">HN</th>
                                     <th width="14%">เลขบัตร ปชช.</th>
                                     <th width="14%">ชื่อ - สกุล</th>
@@ -1328,16 +1313,6 @@ $month_json = htmlspecialchars(json_encode($stats_heat_by_month), ENT_QUOTES, 'U
                                                 </a>
                                             </td>
 
-                                        <?php elseif($is_gp): ?>
-                                            <td><div class="fw-bold text-primary"><?php echo htmlspecialchars($w['hn'] ?? '-'); ?></div></td>
-                                            <td><?php echo htmlspecialchars($w['person_ID'] ?? '-'); ?></td>
-                                            <td><?php echo htmlspecialchars($w['Fname'] ?? '-'); ?></td>
-                                            <td class="fw-bold text-dark"><?php echo htmlspecialchars($w['work_located'] ?? '-'); ?></td>
-                                            <td><?php echo htmlspecialchars($w['data_date'] ?? '-'); ?></td>
-                                            <td class="text-center">
-                                                <a href="GP/indexER.php?HN=<?php echo $w['hn']; ?>&rowid=<?php echo $w['row_ID']; ?>" class="btn btn-sm btn-outline-theme rounded-pill px-3 shadow-sm fw-bold w-100">ไปหน้าจัดการ</a>
-                                            </td>
-                                            
                                         <?php else: ?>
                                             <td class="text-danger fw-bold"><i class="fa-regular fa-clock me-1"></i> <?php echo date('d/m/Y H:i', strtotime($w['wait_time'])); ?></td>
                                             <td class="fw-bold text-primary"><?php echo $w['hn']; ?></td>
@@ -1354,7 +1329,7 @@ $month_json = htmlspecialchars(json_encode($stats_heat_by_month), ENT_QUOTES, 'U
                                     </tr>
                                 <?php endforeach; ?>
                             <?php else: ?>
-                                <tr><td colspan="<?php echo ($is_med||$is_occ||$is_pmr||$is_visit) ? 7 : ($is_er || $is_gp ? 9 : 7); ?>" class="text-center py-5"><div class="text-muted"><i class="fa-solid fa-check-circle fs-2 text-success mb-2 opacity-50"></i><br>ไม่มีผู้ป่วยรอคิวในขณะนี้</div></td></tr>
+                                <tr><td colspan="<?php echo ($is_med||$is_occ||$is_pmr||$is_visit) ? 7 : ($is_er ? 9 : 7); ?>" class="text-center py-5"><div class="text-muted"><i class="fa-solid fa-check-circle fs-2 text-success mb-2 opacity-50"></i><br>ไม่มีผู้ป่วยรอคิวในขณะนี้</div></td></tr>
                             <?php endif; ?>
                         </tbody>
                     </table>
@@ -1378,6 +1353,7 @@ $month_json = htmlspecialchars(json_encode($stats_heat_by_month), ENT_QUOTES, 'U
             </div>
         </div>
     </div>
+    <?php endif; ?>
 
     <div class="table-custom mb-4">
         <div class="table-header-band primary-band">

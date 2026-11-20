@@ -35,7 +35,10 @@
 
     // --- 3. ดึงข้อมูลผู้ป่วย (Header) ---
     $sqlInfo = "SELECT w.*, c.patient_name, c.hn, c.age, c.congenital_disease, c.id as case_id,
-                       EXISTS (SELECT 1 FROM er_details e WHERE e.case_id = c.id) as has_er_treatment
+                       (
+                           EXISTS (SELECT 1 FROM er_details e WHERE e.case_id = c.id)
+                           OR EXISTS (SELECT 1 FROM gp_details g WHERE g.case_id = c.id)
+                       ) as has_initial_treatment
                 FROM ward_details w
                 JOIN cases c ON w.case_id = c.id
                 WHERE w.id = '$ward_id'";
@@ -480,7 +483,7 @@
 
 <script src="../bootstrap-5.0.2-dist/js/bootstrap.bundle.min.js"></script>
 <script>
-    const hasErTreatment = <?php echo json_encode((bool)$info['has_er_treatment']); ?>;
+    const hasInitialTreatment = <?php echo json_encode((bool)$info['has_initial_treatment']); ?>;
     const isHeatInitialDiagnosis = <?php echo json_encode(in_array($info['initial_diagnosis'], $diagnosis_list, true)); ?>;
 
     function toggleDiagnosis(selectObj, otherInputId) {
@@ -495,13 +498,13 @@
     function validateHeatDischarge() {
         const isBlocked = document.getElementById('treatment_result').value === 'Discharge'
             && isHeatInitialDiagnosis
-            && !hasErTreatment;
+            && !hasInitialTreatment;
 
         if (isBlocked) {
             Swal.fire({
                 icon: 'warning',
                 title: 'ไม่สามารถ D/C ได้',
-                text: 'เคส Heat ต้องมีข้อมูลการรักษาจาก ER ก่อนจำหน่ายผู้ป่วย'
+                text: 'เคส Heat ต้องมีข้อมูลการรักษาจาก ER หรือ GP ก่อนจำหน่ายผู้ป่วย'
             });
             return false;
         }

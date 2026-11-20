@@ -236,6 +236,7 @@ $main_result = mysqli_query($conn, $sql);
         .j-step { padding: 3px 10px; border-radius: 50px; font-weight: 600; font-family: 'Prompt', sans-serif; font-size: 0.75rem; white-space: nowrap; border: 1px solid transparent; box-shadow: 0 1px 2px rgba(0,0,0,0.05); }
         .j-arrow { color: #cbd5e1; font-size: 0.65rem; }
         .j-er { background: #fff7ed; color: #ea580c; border-color: #fdba74; } 
+        .j-gp { background: #e0f2fe; color: #0369a1; border-color: #bae6fd; }
         .j-icu { background: #fef2f2; color: #b91c1c; border-color: #fecaca; } 
         .j-rcu { background: #fffbeb; color: #b45309; border-color: #fde68a; } 
         .j-a4 { background: #f5f3ff; color: #6d28d9; border-color: #ede9fe; } 
@@ -454,11 +455,16 @@ $main_result = mysqli_query($conn, $sql);
                                 }
 
                                 // 💡 3. ดึง Timeline การรักษาแนวตั้ง (ล่าสุดบนสุด)
+                                $q_gp_journey = mysqli_query($conn, "SELECT id, hospital_arrival_datetime, recorded_at FROM gp_details WHERE case_id = '$case_id_curr' ORDER BY id DESC LIMIT 1");
+                                $gp_row = ($q_gp_journey && mysqli_num_rows($q_gp_journey) > 0) ? mysqli_fetch_assoc($q_gp_journey) : null;
                                 $q_er_journey = mysqli_query($conn, "SELECT id, hospital_arrival_datetime, recorded_at FROM er_details WHERE case_id = '$case_id_curr' LIMIT 1");
                                 $er_row = ($q_er_journey && mysqli_num_rows($q_er_journey) > 0) ? mysqli_fetch_assoc($q_er_journey) : null;
                                 $q_ward_journey = mysqli_query($conn, "SELECT admit_type, status, discharge_status, admit_date, discharge_date FROM ward_details WHERE case_id = '$case_id_curr' ORDER BY id ASC");
                                 
                                 $steps = [];
+                                if ($gp_row) {
+                                    $steps[] = ['type' => 'gp', 'label' => 'GP', 'icon' => 'fa-user-doctor', 'datetime' => $gp_row['hospital_arrival_datetime'] ?? null];
+                                }
                                 if ($er_row) { 
                                     $steps[] = ['type' => 'er', 'label' => 'ER', 'icon' => 'fa-truck-medical', 'datetime' => $er_row['hospital_arrival_datetime'] ?? null]; 
                                 }

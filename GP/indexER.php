@@ -18,7 +18,6 @@ if (isset($_SESSION['statusMsg'])) {
 }
 
 $hn = isset($_GET['hn']) ? base64_decode($_GET['hn']) : '';
-$rowid = isset($_GET['rowid']) ? base64_decode($_GET['rowid']) : '';
 
 // --- [ส่วนที่ 1] เตรียมตัวแปร Auto Fill (ค่าเริ่มต้นว่าง) ---
 $auto_name = "";
@@ -85,7 +84,6 @@ if (isset($_GET['autofill'])) {
     <div class="main-card">
         <div class="card-body">
             <form action="save_treatmentER.php" method="post" id="erTreatmentForm">
-                <input type="hidden" name="row_id" value="<?php echo $rowid; ?>">
                 <!-- ══════════════════════════════
                      SECTION 1: ค้นหาและระบุตัวตน
                 ══════════════════════════════ -->

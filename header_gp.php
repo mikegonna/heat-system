@@ -8,33 +8,6 @@ if (!isset($path_prefix)) { $path_prefix = ""; }
 $root_path = $path_prefix != "" ? $path_prefix : "../"; 
 $db_paths = [$root_path . 'database/db_conn.php', 'database/db_conn.php', '../database/db_conn.php'];
 foreach ($db_paths as $path) { if (file_exists($path)) { require_once $path; break; } }
-require_once __DIR__ . '/database/fiscal_year.php';
-$fiscal_date_range = getFiscalDateRange($_GET);
-
-// --- [ดึงข้อมูลจริงจากฐานข้อมูล] ---
-$incoming_patients = [];
-if (isset($conn)) {
-    // 💡 แก้ไข: นำเงื่อนไขเช็คเวลา w.admit_date >= e.recorded_at ออกเช่นเดียวกัน
-    // ค้นหาเคส ER ที่ยังค้างประเมิน (ยังไม่สรุปผล) หรือ สั่ง Admit แล้วแต่แผนกยังไม่ได้รับเข้า
-    $sql = "SELECT * FROM data_import WHERE `status` = 0
-            AND DATE(data_date) BETWEEN '{$fiscal_date_range['start_date']}' AND '{$fiscal_date_range['end_date']}'
-            ORDER BY data_date DESC";
-            
-    $result = $conn->query($sql);
-    if($result) {
-        while($row = $result->fetch_assoc()) {
-            $incoming_patients[] = [
-                'row_ID' => $row['row_ID'],
-                'hn' => $row['hn'],
-                'ID' => $row['person_ID'],
-                'Fname' => $row['Fname'],
-                'located' => $row['work_located'],
-                'time' => date('H:i', strtotime($row['data_date']))
-            ];
-        }
-    }
-}
-$case_count = count($incoming_patients);
 ?>
 
 <style>
@@ -219,61 +192,6 @@ $case_count = count($incoming_patients);
 
             <!-- Right side Tools & Profile -->
             <ul class="navbar-nav ms-auto align-items-center gap-3">
-                
-                <!-- Notification Bell -->
-                <li class="nav-item dropdown">
-                    <a class="nav-link text-white position-relative p-2" href="#" data-bs-toggle="dropdown" aria-expanded="false">
-                        <i class="fa-solid fa-bell fa-xl hover-scale <?php echo ($case_count > 0) ? 'bell-active' : ''; ?>"></i>
-                        <?php if($case_count > 0): ?>
-                            <span class="position-absolute top-0 start-100 translate-middle badge rounded-pill bg-danger notification-badge">
-                                <?php echo $case_count; ?>
-                            </span>
-                        <?php endif; ?>
-                    </a>
-                    
-                    <ul class="dropdown-menu dropdown-menu-end dropdown-menu-modern" style="width: 380px;">
-                        <!-- Dropdown Header -->
-                        <div class="bg-light p-3 border-bottom d-flex justify-content-between align-items-center">
-                            <h6 class="mb-0 fw-bold text-dark d-flex align-items-center">
-                                <div class="bg-danger bg-opacity-10 text-danger p-2 rounded-circle me-2 d-inline-flex">
-                                    <i class="fa-solid fa-ambulance"></i>
-                                </div>
-                                ค้างประเมิน / รอส่งตัว
-                            </h6>
-                            <span class="badge bg-danger rounded-pill px-2 py-1"><?php echo $case_count; ?> รายการ</span>
-                        </div>
-
-                        <!-- Dropdown Body (Scrollable) -->
-                        <div class="custom-scrollbar" style="max-height: 400px; overflow-y: auto;">
-                            <?php if($case_count > 0): ?>
-                                <?php foreach ($incoming_patients as $case): ?>
-                                    <div class="dropdown-item p-3 border-bottom case-card text-wrap">
-                                        <div class="d-flex justify-content-between align-items-start mb-1">
-                                            <strong class="text-dark"><i class="fa-solid fa-user me-1 text-muted"></i> <?php echo htmlspecialchars($case['Fname']); ?></strong>
-                                            <small class="text-danger fw-bold"><i class="fa-regular fa-clock me-1"></i><?php echo $case['time']; ?> น.</small>
-                                        </div>
-                                        <div class="d-flex justify-content-between align-items-center mt-1">
-                                            <span class="badge bg-light text-dark border">HN: <?php echo htmlspecialchars($case['hn']); ?></span>
-                                            <a href="<?= $path_prefix; ?>GP/indexER.php?HN=<?php echo $case['hn']; ?>&rowid=<?php echo $case['row_ID']; ?>"
-                                                class="btn btn-sm btn-outline-success rounded-pill px-3 py-1" style="font-size:0.75rem;"><i class="fa-solid fa-arrow-right"></i> ไปหน้าจัดการ</a>
-                                        </div>
-                                        <div class="small text-muted mt-2 text-truncate" style="max-width: 100%;"><i class="fa-solid fa-stethoscope me-1"></i> <?php echo htmlspecialchars($case['located']); ?></div>
-                                    </div>
-                                <?php endforeach; ?>
-                            <?php else: ?>
-                                <div class="p-4 text-center text-muted">
-                                    <i class="fa-regular fa-face-smile-beam fa-2x mb-2 text-success opacity-50"></i>
-                                    <p class="mb-0 small">จัดการเคสเรียบร้อยแล้วทั้งหมด</p>
-                                </div>
-                            <?php endif; ?>
-                        </div>
-                        
-                        <!-- Dropdown Footer -->
-                        <a href="<?php echo $path_prefix; ?>dashboard.php" class="dropdown-item text-center bg-light text-primary py-2 small fw-bold border-top">
-                            ดูรายละเอียดในหน้า Dashboard
-                        </a>
-                    </ul>
-                </li>
                 
                 <!-- User Profile -->
                 <?php if (isset($_SESSION['user_id'])): ?>
